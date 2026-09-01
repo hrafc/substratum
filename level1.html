@@ -3,19 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- PWA Manifest & Service Worker Registration -->
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#8b0000">
-
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('SUBSTRATUM SW Active:', reg.scope))
-        .catch(err => console.error('SUBSTRATUM SW Failed:', err));
-    });
-  }
-</script>
     <title>SUBSTRATUM: PROTOCOL 8</title>
     <style>
         * {
@@ -528,7 +515,6 @@
             document.addEventListener('mousemove', onMouseMove);
 
             document.getElementById('start-btn').addEventListener('click', startGame);
-            document.getElementById('restart-btn').addEventListener('click', () => location.reload());
             document.getElementById('note-close').addEventListener('click', closeNoteModal);
             document.getElementById('safe-submit').addEventListener('click', submitSafeCode);
             document.getElementById('safe-cancel').addEventListener('click', closeSafeModal);
@@ -1267,24 +1253,38 @@
         }
 
         function triggerGameOver(success) {
-            document.exitPointerLock();
-            if (chaseGain && audioCtx) chaseGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    document.exitPointerLock();
+    if (chaseGain && audioCtx) chaseGain.gain.setValueAtTime(0, audioCtx.currentTime);
 
-            const screen = document.getElementById('game-over-screen');
-            const title = document.getElementById('game-over-title');
-            const desc = document.getElementById('game-over-desc');
+    const screen = document.getElementById('game-over-screen');
+    const title = document.getElementById('game-over-title');
+    const desc = document.getElementById('game-over-desc');
+    const btn = document.getElementById('restart-btn');
 
-            if (success) {
-                title.innerText = "SURVIVED";
-                title.style.color = "#4caf50";
-                desc.innerText = "You unlocked Sector 4 blast door and escaped intact.";
-            } else {
-                title.innerText = "SIGNAL LOST";
-                title.style.color = "#ff0000";
-                desc.innerText = "Subject overtaken in the dark. Life signs terminated.";
-            }
-            screen.style.display = 'flex';
-        }
+    if (success) {
+        // Save progress to local storage for your launcher/level select
+        localStorage.setItem('substratum_level2_unlocked', 'true');
+
+        title.innerText = "SURVIVED";
+        title.style.color = "#4caf50";
+        desc.innerText = "You unlocked Sector 4 blast door and escaped intact.";
+        
+        btn.innerText = "PROCEED TO LEVEL 2";
+        btn.onclick = () => {
+            window.location.href = 'level2.html';
+        };
+    } else {
+        title.innerText = "SIGNAL LOST";
+        title.style.color = "#ff0000";
+        desc.innerText = "Subject overtaken in the dark. Life signs terminated.";
+        
+        btn.innerText = "REBOOT SYSTEM";
+        btn.onclick = () => {
+            location.reload();
+        };
+    }
+    screen.style.display = 'flex';
+}
 
         function drawMinimap() {
             if (!minimapCtx) return;

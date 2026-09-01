@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUBSTRATUM: LAUNCHER PROTOCOL</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #030305;
+            font-family: 'Courier New', Courier, monospace;
+            color: #ddd;
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        #glitch-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.25), rgba(0,0,0,0.25) 1px, transparent 1px, transparent 2px);
+            pointer-events: none;
+            z-index: 6;
+        }
+        #vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: inset 0 0 160px rgba(0,0,0,0.95);
+            pointer-events: none;
+            z-index: 5;
+        }
+        .screen-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            padding: 20px;
+            transition: opacity 0.4s ease;
+        }
+        .hidden {
+            display: none !important;
+            opacity: 0;
+        }
+        h1.title {
+            font-size: 3.8rem;
+            letter-spacing: 12px;
+            color: #8b0000;
+            text-shadow: 0 0 15px rgba(139,0,0,0.7), 0 0 30px rgba(255,0,0,0.3);
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        p.subtitle {
+            color: #777;
+            font-size: 0.95rem;
+            letter-spacing: 4px;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+        }
+        .menu-box {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            width: 320px;
+        }
+        .btn {
+            background: rgba(10, 10, 14, 0.85);
+            border: 1px solid #441111;
+            color: #bbb;
+            padding: 14px 20px;
+            font-size: 0.95rem;
+            letter-spacing: 3px;
+            cursor: pointer;
+            text-align: center;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+        .btn:hover:not(.disabled) {
+            background: #8b0000;
+            color: #fff;
+            border-color: #ff3333;
+            box-shadow: 0 0 20px rgba(139,0,0,0.9);
+            transform: scale(1.02);
+        }
+        .btn.disabled {
+            border-color: #222;
+            color: #444;
+            cursor: not-allowed;
+            background: rgba(5,5,5,0.6);
+        }
+        .modal-card {
+            background: rgba(8, 7, 10, 0.95);
+            border: 1px solid #551111;
+            padding: 35px;
+            width: 460px;
+            max-width: 90%;
+            box-shadow: 0 0 40px rgba(0,0,0,0.98);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .modal-header {
+            font-size: 1.3rem;
+            color: #ff3333;
+            letter-spacing: 3px;
+            border-bottom: 1px solid #331111;
+            padding-bottom: 10px;
+            text-align: center;
+        }
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            color: #aaa;
+        }
+        select, input[type="range"] {
+            background: #111;
+            border: 1px solid #444;
+            color: #ffaa00;
+            font-family: inherit;
+            padding: 6px;
+            outline: none;
+        }
+        input[type="range"] {
+            accent-color: #8b0000;
+            cursor: pointer;
+        }
+        #loading-screen {
+            background: #000;
+            z-index: 100;
+        }
+        .loader-bar-bg {
+            width: 300px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #333;
+            margin-top: 20px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        #loader-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: #8b0000;
+            transition: width 0.1s linear;
+        }
+        #loading-text {
+            font-size: 0.85rem;
+            color: #888;
+            letter-spacing: 2px;
+        }
+        .badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            background: #8b0000;
+            color: #fff;
+            margin-left: 8px;
+            border-radius: 2px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="vignette"></div>
+    <div id="glitch-overlay"></div>
+
+    <!-- MAIN MENU PANEL -->
+    <div id="main-menu" class="screen-panel">
+        <h1 class="title">SUBSTRATUM</h1>
+        <p class="subtitle">DEEP BUNKER SURVIVAL SYSTEM</p>
+
+        <div class="menu-box">
+            <button class="btn" id="btn-play">START CAMPAIGN</button>
+            <button class="btn" id="btn-levels">SELECT LEVEL</button>
+            <button class="btn" id="btn-settings">SETTINGS</button>
+        </div>
+    </div>
+
+    <!-- LEVEL SELECT PANEL -->
+    <div id="level-menu" class="screen-panel hidden">
+        <div class="modal-card">
+            <div class="modal-header">SECTOR DEPLOYMENT</div>
+
+            <button class="btn" id="btn-lvl1">
+                LEVEL 1: PROTOCOL 8
+                <span class="badge">UNLOCKED</span>
+            </button>
+
+            <button class="btn disabled" id="btn-lvl2">
+                LEVEL 2: PROTOCOL 9
+                <span id="lvl2-status-badge" class="badge" style="background:#444;">LOCKED</span>
+            </button>
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn" id="btn-unlock-all" style="flex: 1; font-size: 0.75rem; border-color: #555;">[DEV] UNLOCK ALL</button>
+                <button class="btn" id="btn-back-levels" style="flex: 1; font-size: 0.75rem;">BACK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div id="settings-menu" class="screen-panel hidden">
+        <div class="modal-card">
+            <div class="modal-header">SYSTEM CONFIGURATION</div>
+
+            <div class="setting-row">
+                <span>MASTER AUDIO</span>
+                <input type="range" id="vol-slider" min="0" max="100" value="80" />
+            </div>
+
+            <div class="setting-row">
+                <span>GRAPHICS QUALITY</span>
+                <select id="gfx-select">
+                    <option value="low">LOW (PERFORMANCE)</option>
+                    <option value="medium" selected>MEDIUM (BALANCED)</option>
+                    <option value="high">HIGH (ORIGINAL)</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <span>FOV ANGLE</span>
+                <select id="fov-select">
+                    <option value="65">65° NARROW</option>
+                    <option value="75" selected>75° DEFAULT</option>
+                    <option value="90">90° WIDE</option>
+                </select>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="btn" id="btn-reset-prog" style="flex:1; font-size:0.75rem; border-color:#881111; color:#ff6666;">RESET DATA</button>
+                <button class="btn" id="btn-back-settings" style="flex:1; font-size:0.75rem;">SAVE & BACK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOADING SCREEN -->
+    <div id="loading-screen" class="screen-panel hidden">
+        <h1 class="title" style="font-size: 2rem;">INITIALIZING SECTOR...</h1>
+        <p id="loading-text">LOADING METRO TEXTURES AND SHADERS</p>
+        <div class="loader-bar-bg">
+            <div id="loader-bar-fill"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. SETTINGS & PROGRESS MANAGEMENT ---
+        const DEFAULT_SETTINGS = {
+            volume: 0.8,
+            graphics: 'medium',
+            fov: 75,
+            level2Unlocked: false
+        };
+
+        function getSettings() {
+            const saved = localStorage.getItem('substratum_config');
+            return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+        }
+
+        function saveSettings(cfg) {
+            localStorage.setItem('substratum_config', JSON.stringify(cfg));
+        }
+
+        let config = getSettings();
+
+        // --- 2. AUDIO SYNTHESIZER FOR MENU ---
+        let audioCtx;
+        function playMenuClick() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
+
+            gain.gain.setValueAtTime(config.volume * 0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.08);
+        }
+
+        // --- 3. BACKGROUND THREE.JS ATMOSPHERE ---
+        let scene, camera, renderer, particles;
+        function initBackground() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x030305, 0.05);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.z = 5;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x030305);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const geo = new THREE.BufferGeometry();
+            const count = 700;
+            const pos = new Float32Array(count * 3);
+
+            for(let i=0; i < count * 3; i++) {
+                pos[i] = (Math.random() - 0.5) * 15;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+            const mat = new THREE.PointsMaterial({
+                color: 0x8b0000,
+                size: 0.04,
+                transparent: true,
+                opacity: 0.6
+            });
+
+            particles = new THREE.Points(geo, mat);
+            scene.add(particles);
+
+            window.addEventListener('resize', onWindowResize);
+            animateBG();
+        }
+
+        function animateBG() {
+            requestAnimationFrame(animateBG);
+            if (particles) {
+                particles.rotation.y += 0.0008;
+                particles.rotation.x += 0.0004;
+            }
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- 4. NAVIGATION & UI CONTROLS ---
+        const mainPanel = document.getElementById('main-menu');
+        const levelPanel = document.getElementById('level-menu');
+        const settingsPanel = document.getElementById('settings-menu');
+        const loadingPanel = document.getElementById('loading-screen');
+
+        function updateUIState() {
+            // Check Level 2 Unlock Status
+            const btnLvl2 = document.getElementById('btn-lvl2');
+            const badgeLvl2 = document.getElementById('lvl2-status-badge');
+
+            if (config.level2Unlocked) {
+                btnLvl2.classList.remove('disabled');
+                badgeLvl2.innerText = "UNLOCKED";
+                badgeLvl2.style.background = "#8b0000";
+            } else {
+                btnLvl2.classList.add('disabled');
+                badgeLvl2.innerText = "LOCKED";
+                badgeLvl2.style.background = "#444";
+            }
+
+            // Sync Settings UI
+            document.getElementById('vol-slider').value = config.volume * 100;
+            document.getElementById('gfx-select').value = config.graphics;
+            document.getElementById('fov-select').value = config.fov;
+        }
+
+        function showPanel(panel) {
+            playMenuClick();
+            [mainPanel, levelPanel, settingsPanel, loadingPanel].forEach(p => p.classList.add('hidden'));
+            panel.classList.remove('hidden');
+        }
+
+        // Redirect helper function to launch level files
+        function launchLevel(file) {
+            showPanel(loadingPanel);
+            let progress = 0;
+            const fill = document.getElementById('loader-bar-fill');
+            const text = document.getElementById('loading-text');
+
+            const steps = [
+                "ALLOCATING MAZE GEOMETRY...",
+                "COMPASS SIGNAL CONNECTING...",
+                "SPAWNING MONSTER ASSETS...",
+                "DEEP BUNKER PROTOCOL READY."
+            ];
+
+            const interval = setInterval(() => {
+                progress += Math.floor(Math.random() * 18) + 12;
+                if (progress > 100) progress = 100;
+                fill.style.width = `${progress}%`;
+
+                const stepIdx = Math.min(Math.floor((progress / 100) * steps.length), steps.length - 1);
+                text.innerText = steps[stepIdx];
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        window.location.href = file;
+                    }, 400);
+                }
+            }, 120);
+        }
+
+        // --- 5. EVENT LISTENERS ---
+        document.getElementById('btn-play').addEventListener('click', () => {
+            // Plays Level 1 if Level 2 is locked, else launches last unlocked level
+            launchLevel('level1.html');
+        });
+
+        document.getElementById('btn-levels').addEventListener('click', () => showPanel(levelPanel));
+        document.getElementById('btn-settings').addEventListener('click', () => showPanel(settingsPanel));
+
+        document.getElementById('btn-lvl1').addEventListener('click', () => launchLevel('level1.html'));
+        document.getElementById('btn-lvl2').addEventListener('click', () => {
+            if (config.level2Unlocked) launchLevel('level2.html');
+        });
+
+        document.getElementById('btn-unlock-all').addEventListener('click', () => {
+            config.level2Unlocked = true;
+            saveSettings(config);
+            updateUIState();
+            playMenuClick();
+        });
+
+        document.getElementById('btn-back-levels').addEventListener('click', () => showPanel(mainPanel));
+
+        document.getElementById('btn-back-settings').addEventListener('click', () => {
+            config.volume = document.getElementById('vol-slider').value / 100;
+            config.graphics = document.getElementById('gfx-select').value;
+            config.fov = parseInt(document.getElementById('fov-select').value);
+            saveSettings(config);
+            showPanel(mainPanel);
+        });
+
+        document.getElementById('btn-reset-prog').addEventListener('click', () => {
+            config.level2Unlocked = false;
+            saveSettings(config);
+            updateUIState();
+            playMenuClick();
+        });
+
+        window.onload = () => {
+            initBackground();
+            updateUIState();
+        };
+    </script>
+</body>
+</html>

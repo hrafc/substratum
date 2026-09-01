@@ -1,4 +1,4 @@
-const CACHE_NAME = 'substratum-v1';
+const CACHE_NAME = 'substratum-v2.1';
 
 // Files to cache for offline play
 const ASSETS_TO_CACHE = [

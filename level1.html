@@ -4,6 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SUBSTRATUM: PROTOCOL 8</title>
+    <!-- PWA Manifest & Service Worker Registration -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#8b0000">
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SUBSTRATUM SW Active:', reg.scope))
+            .catch(err => console.error('SUBSTRATUM SW Failed:', err));
+        });
+      }
+    </script>
     <style>
         * {
             box-sizing: border-box;
@@ -32,7 +45,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15), rgba(0,0,0,0.15) 1px, transparent 1px, transparent 2px);
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.18), rgba(0,0,0,0.18) 1px, transparent 1px, transparent 2px);
             pointer-events: none;
             z-index: 6;
         }
@@ -406,31 +419,180 @@
             }
         ];
 
-        function generateGrittyTexture(type) {
+        // ENHANCED PROCEDURAL INDUSTRIAL BRICK WALL TEXTURE
+        function generateWallTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = 512;
             const ctx = canvas.getContext('2d');
 
-            ctx.fillStyle = type === 'wall' ? '#1d1d22' : '#141418';
+            ctx.fillStyle = '#141518';
             ctx.fillRect(0, 0, 512, 512);
+
+            const brickH = 32;
+            const brickW = 64;
+            const rows = 512 / brickH;
+            const cols = 512 / brickW + 1;
+
+            for (let r = 0; r < rows; r++) {
+                const offsetX = (r % 2 === 0) ? 0 : -brickW / 2;
+                for (let c = 0; c < cols; c++) {
+                    const x = c * brickW + offsetX;
+                    const y = r * brickH;
+
+                    const v = Math.random();
+                    let baseR = 38 + Math.floor(v * 25);
+                    let baseG = 34 + Math.floor(v * 20);
+                    let baseB = 32 + Math.floor(v * 18);
+
+                    if (Math.random() < 0.25) {
+                        baseR -= 12; baseG -= 10; baseB -= 8;
+                    }
+
+                    ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
+                    ctx.fillRect(x + 2, y + 2, brickW - 4, brickH - 4);
+
+                    const grad = ctx.createLinearGradient(x, y, x, y + brickH);
+                    grad.addColorStop(0, 'rgba(255,255,255,0.06)');
+                    grad.addColorStop(1, 'rgba(0,0,0,0.35)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(x + 2, y + 2, brickW - 4, brickH - 4);
+                }
+            }
+
+            ctx.strokeStyle = '#08080a';
+            ctx.lineWidth = 3;
+            for (let r = 0; r <= rows; r++) {
+                ctx.beginPath();
+                ctx.moveTo(0, r * brickH);
+                ctx.lineTo(512, r * brickH);
+                ctx.stroke();
+            }
+            for (let r = 0; r < rows; r++) {
+                const offsetX = (r % 2 === 0) ? 0 : brickW / 2;
+                for (let c = 0; c <= cols; c++) {
+                    const x = c * brickW + offsetX;
+                    ctx.beginPath();
+                    ctx.moveTo(x, r * brickH);
+                    ctx.lineTo(x, (r + 1) * brickH);
+                    ctx.stroke();
+                }
+            }
 
             const imgData = ctx.getImageData(0, 0, 512, 512);
             for (let i = 0; i < imgData.data.length; i += 4) {
-                const noise = (Math.random() - 0.5) * 50;
+                const noise = (Math.random() - 0.5) * 35;
                 imgData.data[i] = Math.min(255, Math.max(0, imgData.data[i] + noise));
                 imgData.data[i+1] = Math.min(255, Math.max(0, imgData.data[i+1] + noise));
                 imgData.data[i+2] = Math.min(255, Math.max(0, imgData.data[i+2] + noise));
             }
             ctx.putImageData(imgData, 0, 0);
 
-            ctx.strokeStyle = type === 'wall' ? '#0b0b0d' : '#050507';
-            ctx.lineWidth = 2;
-            for(let i = 0; i < 14; i++) {
+            for (let s = 0; s < 18; s++) {
+                const sx = Math.random() * 512;
+                const sy = Math.random() * 200;
+                const h = 100 + Math.random() * 300;
+                const w = 4 + Math.random() * 12;
+
+                const dripGrad = ctx.createLinearGradient(sx, sy, sx, sy + h);
+                dripGrad.addColorStop(0, 'rgba(12, 10, 8, 0.7)');
+                dripGrad.addColorStop(0.5, 'rgba(40, 18, 10, 0.35)');
+                dripGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                ctx.fillStyle = dripGrad;
+                ctx.fillRect(sx, sy, w, h);
+            }
+
+            const grimeGrad = ctx.createLinearGradient(0, 350, 0, 512);
+            grimeGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            grimeGrad.addColorStop(1, 'rgba(15, 20, 12, 0.6)');
+            ctx.fillStyle = grimeGrad;
+            ctx.fillRect(0, 350, 512, 162);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        // ENHANCED PROCEDURAL INDUSTRIAL STEEL/CONCRETE FLOOR TEXTURE
+        function generateFloorTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#0f1013';
+            ctx.fillRect(0, 0, 512, 512);
+
+            const tileSize = 64;
+            const count = 512 / tileSize;
+
+            for (let r = 0; r < count; r++) {
+                for (let c = 0; c < count; c++) {
+                    const x = c * tileSize;
+                    const y = r * tileSize;
+
+                    const shade = 18 + Math.floor(Math.random() * 15);
+                    ctx.fillStyle = `rgb(${shade}, ${shade + 2}, ${shade + 5})`;
+                    ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+
+                    const innerGrad = ctx.createLinearGradient(x, y, x + tileSize, y + tileSize);
+                    innerGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
+                    innerGrad.addColorStop(0.5, 'rgba(0,0,0,0)');
+                    innerGrad.addColorStop(1, 'rgba(0,0,0,0.4)');
+                    ctx.fillStyle = innerGrad;
+                    ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+
+                    ctx.fillStyle = '#22252b';
+                    const padding = 8;
+                    [ [x+padding, y+padding], [x+tileSize-padding, y+padding], 
+                      [x+padding, y+tileSize-padding], [x+tileSize-padding, y+tileSize-padding] ].forEach(([rx, ry]) => {
+                        ctx.beginPath();
+                        ctx.arc(rx, ry, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                }
+            }
+
+            ctx.strokeStyle = '#050507';
+            ctx.lineWidth = 4;
+            for (let i = 0; i <= count; i++) {
                 ctx.beginPath();
-                ctx.moveTo(Math.random() * 512, Math.random() * 512);
-                ctx.lineTo(Math.random() * 512, Math.random() * 512);
+                ctx.moveTo(i * tileSize, 0);
+                ctx.lineTo(i * tileSize, 512);
                 ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * tileSize);
+                ctx.lineTo(512, i * tileSize);
+                ctx.stroke();
+            }
+
+            const imgData = ctx.getImageData(0, 0, 512, 512);
+            for (let i = 0; i < imgData.data.length; i += 4) {
+                const noise = (Math.random() - 0.5) * 28;
+                imgData.data[i] = Math.min(255, Math.max(0, imgData.data[i] + noise));
+                imgData.data[i+1] = Math.min(255, Math.max(0, imgData.data[i+1] + noise));
+                imgData.data[i+2] = Math.min(255, Math.max(0, imgData.data[i+2] + noise));
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            for (let o = 0; o < 8; o++) {
+                const ox = Math.random() * 512;
+                const oy = Math.random() * 512;
+                const rad = 20 + Math.random() * 45;
+
+                const stainGrad = ctx.createRadialGradient(ox, oy, 2, ox, oy, rad);
+                stainGrad.addColorStop(0, 'rgba(4, 5, 6, 0.75)');
+                stainGrad.addColorStop(0.7, 'rgba(8, 10, 12, 0.35)');
+                stainGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                ctx.fillStyle = stainGrad;
+                ctx.beginPath();
+                ctx.arc(ox, oy, rad, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             const texture = new THREE.CanvasTexture(canvas);
@@ -521,9 +683,9 @@
         }
 
         function buildEnvironment() {
-            const wallTex = generateGrittyTexture('wall');
+            const wallTex = generateWallTexture();
             wallTex.repeat.set(1, 1);
-            const floorTex = generateGrittyTexture('floor');
+            const floorTex = generateFloorTexture();
             floorTex.repeat.set(12, 12);
 
             const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85, metalness: 0.1 });
@@ -906,7 +1068,6 @@
             droneGain.connect(audioCtx.destination);
             droneOsc.start();
 
-            // CHASE TENSION MUSIC OSCILLATOR
             chaseOsc = audioCtx.createOscillator();
             chaseGain = audioCtx.createGain();
             chaseFilter = audioCtx.createBiquadFilter();
@@ -925,7 +1086,6 @@
             chaseOsc.start();
         }
 
-        // --- ZOMBIE-LIKE MONSTER GROWL AUDIO SYNTH ---
         function playZombieGrowl() {
             if (!audioCtx) return;
             const now = audioCtx.currentTime;
@@ -1252,39 +1412,39 @@
             jumpscareLoop();
         }
 
+        // UPDATED GAME OVER / LEVEL 2 UNLOCK REDIRECT LOGIC
         function triggerGameOver(success) {
-    document.exitPointerLock();
-    if (chaseGain && audioCtx) chaseGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            document.exitPointerLock();
+            if (chaseGain && audioCtx) chaseGain.gain.setValueAtTime(0, audioCtx.currentTime);
 
-    const screen = document.getElementById('game-over-screen');
-    const title = document.getElementById('game-over-title');
-    const desc = document.getElementById('game-over-desc');
-    const btn = document.getElementById('restart-btn');
+            const screen = document.getElementById('game-over-screen');
+            const title = document.getElementById('game-over-title');
+            const desc = document.getElementById('game-over-desc');
+            const btn = document.getElementById('restart-btn');
 
-    if (success) {
-        // Save progress to local storage for your launcher/level select
-        localStorage.setItem('substratum_level2_unlocked', 'true');
+            if (success) {
+                localStorage.setItem('substratum_level2_unlocked', 'true');
 
-        title.innerText = "SURVIVED";
-        title.style.color = "#4caf50";
-        desc.innerText = "You unlocked Sector 4 blast door and escaped intact.";
-        
-        btn.innerText = "PROCEED TO LEVEL 2";
-        btn.onclick = () => {
-            window.location.href = 'level2.html';
-        };
-    } else {
-        title.innerText = "SIGNAL LOST";
-        title.style.color = "#ff0000";
-        desc.innerText = "Subject overtaken in the dark. Life signs terminated.";
-        
-        btn.innerText = "REBOOT SYSTEM";
-        btn.onclick = () => {
-            location.reload();
-        };
-    }
-    screen.style.display = 'flex';
-}
+                title.innerText = "SURVIVED";
+                title.style.color = "#4caf50";
+                desc.innerText = "You unlocked Sector 4 blast door and escaped intact.";
+                
+                btn.innerText = "PROCEED TO LEVEL 2";
+                btn.onclick = () => {
+                    window.location.href = 'level2.html';
+                };
+            } else {
+                title.innerText = "SIGNAL LOST";
+                title.style.color = "#ff0000";
+                desc.innerText = "Subject overtaken in the dark. Life signs terminated.";
+                
+                btn.innerText = "REBOOT SYSTEM";
+                btn.onclick = () => {
+                    location.reload();
+                };
+            }
+            screen.style.display = 'flex';
+        }
 
         function drawMinimap() {
             if (!minimapCtx) return;
@@ -1431,28 +1591,24 @@
                 }
             }
 
-            // --- CHASE AUDIO, HEARTBEAT, ZOMBIE GROWLS & SCREEN SHAKE ---
             if (stalkerActive && !isJumpscaring) {
                 const dist2D = Math.hypot(stalkerGroup.position.x - player.pos.x, stalkerGroup.position.z - player.pos.z);
                 
                 const proximityRatio = Math.max(0, 1 - dist2D / 15);
                 document.getElementById('vignette').style.boxShadow = `inset 0 0 ${120 + proximityRatio * 80}px rgba(${Math.floor(proximityRatio * 180)},0,0,0.95)`;
 
-                // SCARY CHASE MUSIC MODULATION
                 if (chaseGain && audioCtx) {
                     chaseGain.gain.setValueAtTime(0.18 + proximityRatio * 0.25, audioCtx.currentTime);
                     chaseFilter.frequency.setValueAtTime(280 + proximityRatio * 800, audioCtx.currentTime);
                     chaseOsc.frequency.setValueAtTime(65 + Math.sin(time * 12) * 15, audioCtx.currentTime);
                 }
 
-                // FASTER HEARTBEAT WITH SYNCHRONIZED CAMERA PULSE SHAKE
                 if (time - lastHeartbeat > (0.48 - proximityRatio * 0.28)) {
                     playHeartbeatSound(0.4 + proximityRatio * 0.6, 1.25 + proximityRatio * 1.1);
                     lastHeartbeat = time;
                     currentShake = 0.07 + proximityRatio * 0.08;
                 }
 
-                // ZOMBIE GROWL AUDIO
                 if (time - lastZombieGrowlTime > 2.2 + Math.random() * 2.0) {
                     playZombieGrowl();
                     lastZombieGrowlTime = time;
@@ -1522,7 +1678,6 @@
                 }
             }
 
-            // APPLY DECAYING CAMERA SHAKE
             if (currentShake > 0) {
                 camera.position.x += (Math.random() - 0.5) * currentShake;
                 camera.position.y += (Math.random() - 0.5) * currentShake;

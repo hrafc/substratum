@@ -8,30 +8,44 @@
     <meta name="theme-color" content="#8b0000">
 
     <script>
-    if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('SUBSTRATUM SW Active:', reg.scope))
-        .catch(err => console.error('SUBSTRATUM SW Failed:', err));
-     });
-    }
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SUBSTRATUM SW Active:', reg.scope))
+            .catch(err => console.error('SUBSTRATUM SW Failed:', err));
+        });
+      }
     </script>
-    <title>SUBSTRATUM: LAUNCHER PROTOCOL</title>
+    <title>SUBSTRATUM: TERMINAL LAUNCHER</title>
     <style>
+        :root {
+            --bg-dark: #020305;
+            --red-main: #8b0000;
+            --red-bright: #ff2222;
+            --red-glow: rgba(255, 34, 34, 0.4);
+            --amber-main: #ffaa00;
+            --cyan-accent: #00ffcc;
+            --panel-bg: rgba(6, 7, 10, 0.92);
+            --border-color: rgba(139, 0, 0, 0.45);
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
             user-select: none;
         }
+
         body, html {
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #030305;
+            background-color: var(--bg-dark);
             font-family: 'Courier New', Courier, monospace;
-            color: #ddd;
+            color: #d1d5db;
         }
+
+        /* --- BACKGROUND 3D CANVAS & OVERLAYS --- */
         #canvas-container {
             position: absolute;
             top: 0;
@@ -40,26 +54,73 @@
             height: 100%;
             z-index: 1;
         }
-        #glitch-overlay {
+
+        #crt-scanlines {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.25), rgba(0,0,0,0.25) 1px, transparent 1px, transparent 2px);
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 6px 100%;
             pointer-events: none;
             z-index: 6;
         }
+
         #vignette {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            box-shadow: inset 0 0 160px rgba(0,0,0,0.95);
+            box-shadow: inset 0 0 180px rgba(0,0,0,0.96);
             pointer-events: none;
             z-index: 5;
         }
+
+        /* --- TERMINAL TICKER HEADER / FOOTER --- */
+        #terminal-bar-top, #terminal-bar-bottom {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            padding: 10px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: #777;
+            z-index: 15;
+            background: rgba(3, 4, 6, 0.75);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            text-transform: uppercase;
+        }
+
+        #terminal-bar-top { top: 0; }
+        #terminal-bar-bottom { 
+            bottom: 0; 
+            border-bottom: none; 
+            border-top: 1px solid rgba(255,255,255,0.05); 
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--red-bright);
+            border-radius: 50%;
+            margin-right: 6px;
+            box-shadow: 0 0 8px var(--red-bright);
+            animation: pulseDot 1.6s infinite ease-in-out;
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+
+        /* --- UI SCREEN PANELS --- */
         .screen-panel {
             position: absolute;
             top: 0;
@@ -71,79 +132,211 @@
             justify-content: center;
             align-items: center;
             z-index: 10;
-            padding: 20px;
-            transition: opacity 0.4s ease;
+            padding: 40px 20px;
+            transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 1;
+            transform: scale(1);
         }
-        .hidden {
+
+        .screen-panel.hidden {
             display: none !important;
             opacity: 0;
+            transform: scale(0.96);
+            pointer-events: none;
         }
-        h1.title {
-            font-size: 3.8rem;
-            letter-spacing: 12px;
-            color: #8b0000;
-            text-shadow: 0 0 15px rgba(139,0,0,0.7), 0 0 30px rgba(255,0,0,0.3);
-            margin-bottom: 5px;
+
+        /* --- BRANDING & TITLES --- */
+        .title-container {
             text-align: center;
+            margin-bottom: 35px;
+            position: relative;
         }
+
+        h1.title {
+            font-size: 4.2rem;
+            letter-spacing: 16px;
+            color: #f3f4f6;
+            text-shadow: 0 0 20px var(--red-main), 0 0 40px var(--red-bright);
+            text-transform: uppercase;
+            font-weight: 900;
+            position: relative;
+            animation: glitchText 4s infinite;
+        }
+
         p.subtitle {
-            color: #777;
-            font-size: 0.95rem;
-            letter-spacing: 4px;
-            margin-bottom: 40px;
+            color: #888;
+            font-size: 0.85rem;
+            letter-spacing: 6px;
+            margin-top: 6px;
             text-transform: uppercase;
         }
+
+        @keyframes glitchText {
+            0%, 92%, 100% { transform: translate(0,0); }
+            93% { transform: translate(-2px, 1px); text-shadow: -2px 0 var(--red-bright), 2px 0 var(--cyan-accent); }
+            94% { transform: translate(2px, -1px); text-shadow: 2px 0 var(--red-bright), -2px 0 var(--amber-main); }
+            95% { transform: translate(0,0); }
+        }
+
+        /* --- MENU CONTAINER & CARDS --- */
         .menu-box {
             display: flex;
             flex-direction: column;
-            gap: 14px;
-            width: 320px;
+            gap: 16px;
+            width: 360px;
         }
-        .btn {
-            background: rgba(10, 10, 14, 0.85);
-            border: 1px solid #441111;
-            color: #bbb;
-            padding: 14px 20px;
-            font-size: 0.95rem;
-            letter-spacing: 3px;
-            cursor: pointer;
-            text-align: center;
-            font-family: inherit;
-            transition: all 0.2s ease;
-            box-shadow: 0 0 10px rgba(0,0,0,0.8);
-        }
-        .btn:hover:not(.disabled) {
-            background: #8b0000;
-            color: #fff;
-            border-color: #ff3333;
-            box-shadow: 0 0 20px rgba(139,0,0,0.9);
-            transform: scale(1.02);
-        }
-        .btn.disabled {
-            border-color: #222;
-            color: #444;
-            cursor: not-allowed;
-            background: rgba(5,5,5,0.6);
-        }
+
         .modal-card {
-            background: rgba(8, 7, 10, 0.95);
-            border: 1px solid #551111;
-            padding: 35px;
-            width: 460px;
-            max-width: 90%;
-            box-shadow: 0 0 40px rgba(0,0,0,0.98);
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 32px;
+            width: 520px;
+            max-width: 92%;
+            box-shadow: 0 0 50px rgba(0,0,0,0.95), inset 0 0 20px rgba(139, 0, 0, 0.15);
             display: flex;
             flex-direction: column;
             gap: 20px;
+            position: relative;
+            backdrop-filter: blur(8px);
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%);
         }
+
+        .modal-card::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 20px;
+            width: 60px;
+            height: 2px;
+            background: var(--red-bright);
+            box-shadow: 0 0 10px var(--red-bright);
+        }
+
         .modal-header {
-            font-size: 1.3rem;
-            color: #ff3333;
-            letter-spacing: 3px;
-            border-bottom: 1px solid #331111;
-            padding-bottom: 10px;
+            font-size: 1.2rem;
+            color: var(--red-bright);
+            letter-spacing: 4px;
+            border-bottom: 1px solid rgba(139, 0, 0, 0.3);
+            padding-bottom: 12px;
             text-align: center;
+            text-transform: uppercase;
+            font-weight: bold;
         }
+
+        /* --- INTERACTIVE BUTTONS --- */
+        .btn {
+            position: relative;
+            background: rgba(12, 14, 20, 0.85);
+            border: 1px solid rgba(139, 0, 0, 0.5);
+            color: #d1d5db;
+            padding: 16px 22px;
+            font-size: 0.9rem;
+            letter-spacing: 3px;
+            cursor: pointer;
+            text-align: left;
+            font-family: inherit;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-transform: uppercase;
+            outline: none;
+            overflow: hidden;
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 34, 34, 0.2), transparent);
+            transition: left 0.4s ease;
+        }
+
+        .btn:hover:not(.disabled)::after {
+            left: 100%;
+        }
+
+        .btn:hover:not(.disabled) {
+            background: var(--red-main);
+            color: #ffffff;
+            border-color: var(--red-bright);
+            box-shadow: 0 0 25px var(--red-glow);
+            transform: translateX(4px);
+        }
+
+        .btn.disabled {
+            border-color: rgba(255,255,255,0.08);
+            color: #444;
+            cursor: not-allowed;
+            background: rgba(5,5,8,0.6);
+        }
+
+        .badge {
+            font-size: 10px;
+            padding: 3px 8px;
+            background: var(--red-main);
+            color: #fff;
+            border-radius: 2px;
+            letter-spacing: 1px;
+            border: 1px solid var(--red-bright);
+        }
+
+        .badge.locked {
+            background: #1f232b;
+            color: #666;
+            border-color: #333;
+        }
+
+        .badge.active {
+            background: var(--cyan-accent);
+            color: #000;
+            border-color: #00ffcc;
+            font-weight: bold;
+        }
+
+        /* --- LEVEL SELECTION CARDS --- */
+        .sector-card {
+            background: rgba(10, 12, 16, 0.9);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .sector-card:hover:not(.locked-card) {
+            border-color: var(--red-bright);
+            background: rgba(20, 10, 12, 0.9);
+            box-shadow: 0 0 15px rgba(139, 0, 0, 0.3);
+        }
+
+        .sector-card.locked-card {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .sector-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95rem;
+            color: #fff;
+            letter-spacing: 2px;
+        }
+
+        .sector-desc {
+            font-size: 0.75rem;
+            color: #777;
+            line-height: 1.4;
+        }
+
+        /* --- CONFIG SETTINGS --- */
         .setting-row {
             display: flex;
             justify-content: space-between;
@@ -151,50 +344,74 @@
             font-size: 0.85rem;
             letter-spacing: 2px;
             color: #aaa;
+            padding: 6px 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.06);
         }
+
         select, input[type="range"] {
-            background: #111;
-            border: 1px solid #444;
-            color: #ffaa00;
+            background: #090a0e;
+            border: 1px solid #333;
+            color: var(--amber-main);
             font-family: inherit;
-            padding: 6px;
+            padding: 8px;
             outline: none;
-        }
-        input[type="range"] {
-            accent-color: #8b0000;
+            font-size: 0.8rem;
             cursor: pointer;
         }
+
+        select:focus, input[type="range"]:focus {
+            border-color: var(--red-bright);
+        }
+
+        input[type="range"] {
+            accent-color: var(--red-bright);
+            height: 6px;
+        }
+
+        /* --- INTEL LOG TERMINAL --- */
+        .intel-box {
+            background: rgba(4, 5, 8, 0.85);
+            border: 1px solid rgba(0, 255, 204, 0.2);
+            padding: 16px;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            color: #8fa0a8;
+            max-height: 220px;
+            overflow-y: auto;
+            text-align: left;
+        }
+
+        /* --- LOADING SCREEN --- */
         #loading-screen {
             background: #000;
             z-index: 100;
         }
+
         .loader-bar-bg {
-            width: 300px;
+            width: 340px;
             height: 8px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid #333;
-            margin-top: 20px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(139,0,0,0.5);
+            margin-top: 25px;
             border-radius: 2px;
             overflow: hidden;
+            box-shadow: 0 0 15px rgba(0,0,0,0.9);
         }
+
         #loader-bar-fill {
             width: 0%;
             height: 100%;
-            background: #8b0000;
+            background: linear-gradient(90deg, var(--red-main), var(--red-bright));
+            box-shadow: 0 0 12px var(--red-bright);
             transition: width 0.1s linear;
         }
+
         #loading-text {
-            font-size: 0.85rem;
-            color: #888;
-            letter-spacing: 2px;
-        }
-        .badge {
-            font-size: 10px;
-            padding: 2px 6px;
-            background: #8b0000;
-            color: #fff;
-            margin-left: 8px;
-            border-radius: 2px;
+            font-size: 0.8rem;
+            color: #777;
+            letter-spacing: 3px;
+            margin-top: 12px;
+            text-transform: uppercase;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -202,168 +419,358 @@
 <body>
     <div id="canvas-container"></div>
     <div id="vignette"></div>
-    <div id="glitch-overlay"></div>
+    <div id="crt-scanlines"></div>
+
+    <!-- TERMINAL BARS -->
+    <div id="terminal-bar-top">
+        <div><span class="status-dot"></span>SUBSTRATUM COMMAND OS v2.6.4</div>
+        <div id="clock-display">00:00:00 LOCAL</div>
+    </div>
+
+    <div id="terminal-bar-bottom">
+        <div id="status-feed">SYSTEM STATUS: SECTOR 4 PRESSURE NOMINAL</div>
+        <div>STATION ID: GRID-8812</div>
+    </div>
 
     <!-- MAIN MENU PANEL -->
     <div id="main-menu" class="screen-panel">
-        <h1 class="title">SUBSTRATUM</h1>
-        <p class="subtitle">DEEP BUNKER SURVIVAL SYSTEM</p>
+        <div class="title-container">
+            <h1 class="title">SUBSTRATUM</h1>
+            <p class="subtitle">DEEP SUBTERRANEAN SURVIVAL SYSTEM</p>
+        </div>
 
         <div class="menu-box">
-            <button class="btn" id="btn-play">START CAMPAIGN</button>
-            <button class="btn" id="btn-levels">SELECT LEVEL</button>
-            <button class="btn" id="btn-settings">SETTINGS</button>
+            <button class="btn" id="btn-play">
+                <span>INITIALIZE CAMPAIGN</span>
+                <span style="font-size: 12px; opacity: 0.6;">►</span>
+            </button>
+            <button class="btn" id="btn-levels">
+                <span>SECTOR DEPLOYMENT</span>
+                <span style="font-size: 12px; opacity: 0.6;">[MAP]</span>
+            </button>
+            <button class="btn" id="btn-intel">
+                <span>INTEL & LOGS</span>
+                <span style="font-size: 12px; opacity: 0.6;">[INFO]</span>
+            </button>
+            <button class="btn" id="btn-settings">
+                <span>CONFIGURATION</span>
+                <span style="font-size: 12px; opacity: 0.6;">[CFG]</span>
+            </button>
         </div>
     </div>
 
-    <!-- LEVEL SELECT PANEL -->
+    <!-- SECTOR SELECTION PANEL -->
     <div id="level-menu" class="screen-panel hidden">
         <div class="modal-card">
-            <div class="modal-header">SECTOR DEPLOYMENT</div>
+            <div class="modal-header">SECTOR DEPLOYMENT GRID</div>
 
-            <button class="btn" id="btn-lvl1">
-                LEVEL 1: PROTOCOL 8
-                <span class="badge">UNLOCKED</span>
-            </button>
+            <!-- LEVEL 1 CARD -->
+            <div class="sector-card" id="card-lvl1">
+                <div class="sector-title">
+                    <span>SECTOR 4: PROTOCOL 8</span>
+                    <span class="badge active">AVAILABLE</span>
+                </div>
+                <div class="sector-desc">
+                    Abandoned metro tunnels. Collect 3 research logs, locate handwritten clipboard code, and breach north vault door.
+                </div>
+            </div>
 
-            <button class="btn disabled" id="btn-lvl2">
-                LEVEL 2: PROTOCOL 9
-                <span id="lvl2-status-badge" class="badge" style="background:#444;">LOCKED</span>
-            </button>
+            <!-- LEVEL 2 CARD -->
+            <div class="sector-card locked-card" id="card-lvl2">
+                <div class="sector-title">
+                    <span>SECTOR 9: PROTOCOL 9</span>
+                    <span id="lvl2-badge" class="badge locked">LOCKED</span>
+                </div>
+                <div class="sector-desc">
+                    Deep sub-level grid. Expanded 16x16 corridor maze, 5 audio logs, dark flickering flashlight, 6-digit vault lock.
+                </div>
+            </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 10px;">
-                <button class="btn" id="btn-unlock-all" style="flex: 1; font-size: 0.75rem; border-color: #555;">[DEV] UNLOCK ALL</button>
-                <button class="btn" id="btn-back-levels" style="flex: 1; font-size: 0.75rem;">BACK</button>
+            <!-- LEVEL 3 PREVIEW CARD -->
+            <div class="sector-card locked-card">
+                <div class="sector-title">
+                    <span>SECTOR 12: PROTOCOL 10</span>
+                    <span class="badge locked">COMING SOON</span>
+                </div>
+                <div class="sector-desc">
+                    Lower sump drainage core. Extreme proximity AI, toxic atmosphere, and multi-vault override sequence.
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 10px;">
+                <button class="btn" id="btn-unlock-all" style="flex: 1; font-size: 0.75rem; border-color: #555;">[DEV] OVERRIDE LOCKS</button>
+                <button class="btn" id="btn-back-levels" style="flex: 1; font-size: 0.75rem; text-align: center;">RETURN TO MENU</button>
             </div>
         </div>
     </div>
 
-    <!-- SETTINGS PANEL -->
+    <!-- INTEL & LOGS PANEL -->
+    <div id="intel-menu" class="screen-panel hidden">
+        <div class="modal-card">
+            <div class="modal-header">SUB-LEVEL INTEL & SURVIVAL PROTOCOL</div>
+
+            <div class="intel-box">
+                <span style="color: var(--cyan-accent); font-weight: bold;">[SURVIVAL GUIDELINES]</span><br>
+                • Keep your flashlight usage strictly managed. Prolonged beam exposure attracts biological anomalies in dark sub-levels.<br>
+                • Sprinting rapidly consumes stamina—exhaustion in narrow corridors is fatal.<br>
+                • Hunt down audio logs and handwritten clipboards to deduce vault security sequences.<br><br>
+                <span style="color: var(--red-bright); font-weight: bold;">[CONTROLS BRIEFING]</span><br>
+                • [W A S D] Navigation | [SHIFT] Sprint Sprinting<br>
+                • [F] Flashlight Toggle | [E] Read Note / Open Vault
+            </div>
+
+            <button class="btn" id="btn-back-intel" style="text-align: center;">RETURN TO MENU</button>
+        </div>
+    </div>
+
+    <!-- CONFIGURATION PANEL -->
     <div id="settings-menu" class="screen-panel hidden">
         <div class="modal-card">
             <div class="modal-header">SYSTEM CONFIGURATION</div>
 
             <div class="setting-row">
-                <span>MASTER AUDIO</span>
+                <span>MASTER AUDIO VOLUME</span>
                 <input type="range" id="vol-slider" min="0" max="100" value="80" />
             </div>
 
             <div class="setting-row">
-                <span>GRAPHICS QUALITY</span>
+                <span>GRAPHICS RENDERING</span>
                 <select id="gfx-select">
-                    <option value="low">LOW (PERFORMANCE)</option>
-                    <option value="medium" selected>MEDIUM (BALANCED)</option>
-                    <option value="high">HIGH (ORIGINAL)</option>
+                    <option value="low">LOW (FAST)</option>
+                    <option value="medium" selected>BALANCED</option>
+                    <option value="high">ULTRA HORROR</option>
                 </select>
             </div>
 
             <div class="setting-row">
-                <span>FOV ANGLE</span>
+                <span>CAMERA FOV</span>
                 <select id="fov-select">
                     <option value="65">65° NARROW</option>
-                    <option value="75" selected>75° DEFAULT</option>
+                    <option value="75" selected>75° STANDARD</option>
                     <option value="90">90° WIDE</option>
                 </select>
             </div>
 
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn" id="btn-reset-prog" style="flex:1; font-size:0.75rem; border-color:#881111; color:#ff6666;">RESET DATA</button>
-                <button class="btn" id="btn-back-settings" style="flex:1; font-size:0.75rem;">SAVE & BACK</button>
+            <div style="display:flex; gap:12px; margin-top:10px;">
+                <button class="btn" id="btn-reset-prog" style="flex:1; font-size:0.75rem; border-color:#881111; color:#ff6666; text-align: center;">PURGE SAVE</button>
+                <button class="btn" id="btn-back-settings" style="flex:1; font-size:0.75rem; text-align: center;">SAVE & CLOSE</button>
             </div>
         </div>
     </div>
 
     <!-- LOADING SCREEN -->
     <div id="loading-screen" class="screen-panel hidden">
-        <h1 class="title" style="font-size: 2rem;">INITIALIZING SECTOR...</h1>
-        <p id="loading-text">LOADING METRO TEXTURES AND SHADERS</p>
+        <h1 class="title" style="font-size: 2.2rem;">INITIALIZING SECTOR...</h1>
+        <p id="loading-text">ALLOCATING METRO GRID GEOMETRY</p>
         <div class="loader-bar-bg">
             <div id="loader-bar-fill"></div>
         </div>
     </div>
 
     <script>
-        // --- 1. SETTINGS & PROGRESS MANAGEMENT ---
-        const DEFAULT_SETTINGS = {
+        // --- 1. CONFIGURATION & PROGRESS SYSTEM ---
+        const DEFAULT_CONFIG = {
             volume: 0.8,
             graphics: 'medium',
             fov: 75,
             level2Unlocked: false
         };
 
-        function getSettings() {
-            const saved = localStorage.getItem('substratum_config');
-            return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+        function loadConfig() {
+            const savedConfig = localStorage.getItem('substratum_config');
+            const isLvl2Unlocked = localStorage.getItem('substratum_level2_unlocked') === 'true';
+
+            let cfg = savedConfig ? JSON.parse(savedConfig) : { ...DEFAULT_CONFIG };
+            if (isLvl2Unlocked) cfg.level2Unlocked = true;
+            return cfg;
         }
 
-        function saveSettings(cfg) {
+        function saveConfig(cfg) {
             localStorage.setItem('substratum_config', JSON.stringify(cfg));
+            if (cfg.level2Unlocked) {
+                localStorage.setItem('substratum_level2_unlocked', 'true');
+            } else {
+                localStorage.removeItem('substratum_level2_unlocked');
+            }
         }
 
-        let config = getSettings();
+        let config = loadConfig();
 
-        // --- 2. AUDIO SYNTHESIZER FOR MENU ---
-        let audioCtx;
-        function playMenuClick() {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // --- 2. ADVANCED WEB AUDIO SYNTHESIZER ---
+        let audioCtx = null;
+        let ambientDrone = null;
+        let droneGain = null;
+
+        function initAudioEngine() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Ambient Sub-Level Horror Drone
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            droneGain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+
+            osc1.type = 'sawtooth';
+            osc1.frequency.setValueAtTime(34, audioCtx.currentTime); // Low C#
+
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(34.8, audioCtx.currentTime); // Slight binaural beat
+
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(85, audioCtx.currentTime);
+
+            droneGain.gain.setValueAtTime(config.volume * 0.12, audioCtx.currentTime);
+
+            osc1.connect(filter);
+            osc2.connect(filter);
+            filter.connect(droneGain);
+            droneGain.connect(audioCtx.destination);
+
+            osc1.start();
+            osc2.start();
+        }
+
+        function playHoverSound() {
+            if (!audioCtx) return;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
 
-            gain.gain.setValueAtTime(config.volume * 0.15, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.05);
+
+            gain.gain.setValueAtTime(config.volume * 0.08, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
 
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.08);
+            osc.stop(audioCtx.currentTime + 0.05);
         }
 
-        // --- 3. BACKGROUND THREE.JS ATMOSPHERE ---
-        let scene, camera, renderer, particles;
-        function initBackground() {
+        function playClickSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.09);
+
+            gain.gain.setValueAtTime(config.volume * 0.18, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.09);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.09);
+        }
+
+        // --- 3. ATMOSPHERIC 3D BUNKER SCENE (THREE.JS) ---
+        let scene, camera, renderer, fanGroup, emergencyLight;
+
+        function init3DBackground() {
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x030305, 0.05);
+            scene.fog = new THREE.FogExp2(0x020305, 0.065);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.z = 5;
+            camera.position.set(0, 1.2, 4.5);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setClearColor(0x030305);
+            renderer.setClearColor(0x020305);
+            renderer.shadowMap.enabled = true;
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            const geo = new THREE.BufferGeometry();
-            const count = 700;
-            const pos = new Float32Array(count * 3);
+            // Corridor Geometry
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.85, metalness: 0.2 });
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x08090c, roughness: 0.6, metalness: 0.4 });
 
-            for(let i=0; i < count * 3; i++) {
-                pos[i] = (Math.random() - 0.5) * 15;
+            // Floor & Ceiling
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(8, 30), floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.z = -10;
+            scene.add(floor);
+
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(8, 30), wallMat);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.set(0, 3.5, -10);
+            scene.add(ceiling);
+
+            // Left & Right Concrete Walls
+            const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.5), wallMat);
+            leftWall.rotation.y = Math.PI / 2;
+            leftWall.position.set(-4, 1.75, -10);
+            scene.add(leftWall);
+
+            const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.5), wallMat);
+            rightWall.rotation.y = -Math.PI / 2;
+            rightWall.position.set(4, 1.75, -10);
+            scene.add(rightWall);
+
+            // Rear Industrial Fan Wall
+            fanGroup = new THREE.Group();
+            fanGroup.position.set(0, 1.75, -18);
+
+            const fanFrame = new THREE.Mesh(
+                new THREE.TorusGeometry(2.2, 0.15, 12, 32),
+                new THREE.MeshStandardMaterial({ color: 0x22252e, metalness: 0.8 })
+            );
+            fanGroup.add(fanFrame);
+
+            for (let i = 0; i < 6; i++) {
+                const blade = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.35, 1.9, 0.04),
+                    new THREE.MeshStandardMaterial({ color: 0x181a20, metalness: 0.9 })
+                );
+                blade.rotation.z = (i * Math.PI) / 3;
+                fanGroup.add(blade);
             }
-            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            scene.add(fanGroup);
 
-            const mat = new THREE.PointsMaterial({
-                color: 0x8b0000,
-                size: 0.04,
-                transparent: true,
-                opacity: 0.6
-            });
+            // Lighting setup
+            const ambient = new THREE.AmbientLight(0x0a0d14, 0.4);
+            scene.add(ambient);
 
-            particles = new THREE.Points(geo, mat);
+            emergencyLight = new THREE.PointLight(0xff1100, 3.5, 14);
+            emergencyLight.position.set(0, 2.8, -4);
+            scene.add(emergencyLight);
+
+            // Floating Dust Particles
+            const particleGeo = new THREE.BufferGeometry();
+            const pCount = 350;
+            const pPos = new Float32Array(pCount * 3);
+            for (let i = 0; i < pCount * 3; i += 3) {
+                pPos[i] = (Math.random() - 0.5) * 8;
+                pPos[i+1] = Math.random() * 3.5;
+                pPos[i+2] = (Math.random() - 0.5) * 20;
+            }
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+            const particles = new THREE.Points(
+                particleGeo,
+                new THREE.PointsMaterial({ color: 0x8b0000, size: 0.035, transparent: true, opacity: 0.5 })
+            );
             scene.add(particles);
 
             window.addEventListener('resize', onWindowResize);
-            animateBG();
+            animate3D();
         }
 
-        function animateBG() {
-            requestAnimationFrame(animateBG);
-            if (particles) {
-                particles.rotation.y += 0.0008;
-                particles.rotation.x += 0.0004;
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            const time = performance.now() * 0.001;
+
+            if (fanGroup) fanGroup.rotation.z += 0.015;
+
+            if (emergencyLight) {
+                emergencyLight.intensity = 2.5 + Math.sin(time * 3.5) * 1.5 + (Math.random() - 0.5) * 0.3;
             }
+
+            // Subtle cinematic camera sway
+            camera.position.x = Math.sin(time * 0.5) * 0.18;
+            camera.position.y = 1.2 + Math.cos(time * 0.7) * 0.08;
+
             renderer.render(scene, camera);
         }
 
@@ -376,37 +783,37 @@
         // --- 4. NAVIGATION & UI CONTROLS ---
         const mainPanel = document.getElementById('main-menu');
         const levelPanel = document.getElementById('level-menu');
+        const intelPanel = document.getElementById('intel-menu');
         const settingsPanel = document.getElementById('settings-menu');
         const loadingPanel = document.getElementById('loading-screen');
 
         function updateUIState() {
-            // Check Level 2 Unlock Status
-            const btnLvl2 = document.getElementById('btn-lvl2');
-            const badgeLvl2 = document.getElementById('lvl2-status-badge');
+            const cardLvl2 = document.getElementById('card-lvl2');
+            const badgeLvl2 = document.getElementById('lvl2-badge');
 
             if (config.level2Unlocked) {
-                btnLvl2.classList.remove('disabled');
-                badgeLvl2.innerText = "UNLOCKED";
-                badgeLvl2.style.background = "#8b0000";
+                cardLvl2.classList.remove('locked-card');
+                badgeLvl2.classList.remove('locked');
+                badgeLvl2.classList.add('active');
+                badgeLvl2.innerText = "AVAILABLE";
             } else {
-                btnLvl2.classList.add('disabled');
+                cardLvl2.classList.add('locked-card');
+                badgeLvl2.classList.add('locked');
+                badgeLvl2.classList.remove('active');
                 badgeLvl2.innerText = "LOCKED";
-                badgeLvl2.style.background = "#444";
             }
 
-            // Sync Settings UI
             document.getElementById('vol-slider').value = config.volume * 100;
             document.getElementById('gfx-select').value = config.graphics;
             document.getElementById('fov-select').value = config.fov;
         }
 
-        function showPanel(panel) {
-            playMenuClick();
-            [mainPanel, levelPanel, settingsPanel, loadingPanel].forEach(p => p.classList.add('hidden'));
-            panel.classList.remove('hidden');
+        function showPanel(targetPanel) {
+            playClickSound();
+            [mainPanel, levelPanel, intelPanel, settingsPanel, loadingPanel].forEach(p => p.classList.add('hidden'));
+            targetPanel.classList.remove('hidden');
         }
 
-        // Redirect helper function to launch level files
         function launchLevel(file) {
             showPanel(loadingPanel);
             let progress = 0;
@@ -415,13 +822,13 @@
 
             const steps = [
                 "ALLOCATING MAZE GEOMETRY...",
-                "COMPASS SIGNAL CONNECTING...",
-                "SPAWNING MONSTER ASSETS...",
+                "CALIBRATING COMPASS SIGNAL...",
+                "SPAWNING MUTATED ANOMALIES...",
                 "DEEP BUNKER PROTOCOL READY."
             ];
 
             const interval = setInterval(() => {
-                progress += Math.floor(Math.random() * 18) + 12;
+                progress += Math.floor(Math.random() * 16) + 10;
                 if (progress > 100) progress = 100;
                 fill.style.width = `${progress}%`;
 
@@ -432,52 +839,79 @@
                     clearInterval(interval);
                     setTimeout(() => {
                         window.location.href = file;
-                    }, 400);
+                    }, 350);
                 }
-            }, 120);
+            }, 110);
         }
 
-        // --- 5. EVENT LISTENERS ---
+        // --- 5. REALTIME CLOCK & FEED ---
+        function updateClock() {
+            const now = new Date();
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('clock-display').innerText = `${h}:${m}:${s} LOCAL`;
+        }
+        setInterval(updateClock, 1000);
+
+        // --- 6. EVENT BINDINGS ---
+        document.addEventListener('click', () => {
+            initAudioEngine();
+        }, { once: true });
+
+        document.querySelectorAll('.btn, .sector-card').forEach(elem => {
+            elem.addEventListener('mouseenter', playHoverSound);
+        });
+
         document.getElementById('btn-play').addEventListener('click', () => {
-            // Plays Level 1 if Level 2 is locked, else launches last unlocked level
-            launchLevel('level1.html');
+            const target = config.level2Unlocked ? 'level2.html' : 'level1.html';
+            launchLevel(target);
         });
 
         document.getElementById('btn-levels').addEventListener('click', () => showPanel(levelPanel));
+        document.getElementById('btn-intel').addEventListener('click', () => showPanel(intelPanel));
         document.getElementById('btn-settings').addEventListener('click', () => showPanel(settingsPanel));
 
-        document.getElementById('btn-lvl1').addEventListener('click', () => launchLevel('level1.html'));
-        document.getElementById('btn-lvl2').addEventListener('click', () => {
+        document.getElementById('card-lvl1').addEventListener('click', () => launchLevel('level1.html'));
+        document.getElementById('card-lvl2').addEventListener('click', () => {
             if (config.level2Unlocked) launchLevel('level2.html');
         });
 
         document.getElementById('btn-unlock-all').addEventListener('click', () => {
             config.level2Unlocked = true;
-            saveSettings(config);
+            saveConfig(config);
             updateUIState();
-            playMenuClick();
+            playClickSound();
         });
 
         document.getElementById('btn-back-levels').addEventListener('click', () => showPanel(mainPanel));
+        document.getElementById('btn-back-intel').addEventListener('click', () => showPanel(mainPanel));
+
+        document.getElementById('vol-slider').addEventListener('input', (e) => {
+            config.volume = e.target.value / 100;
+            if (droneGain && audioCtx) {
+                droneGain.gain.setValueAtTime(config.volume * 0.12, audioCtx.currentTime);
+            }
+        });
 
         document.getElementById('btn-back-settings').addEventListener('click', () => {
-            config.volume = document.getElementById('vol-slider').value / 100;
             config.graphics = document.getElementById('gfx-select').value;
             config.fov = parseInt(document.getElementById('fov-select').value);
-            saveSettings(config);
+            saveConfig(config);
             showPanel(mainPanel);
         });
 
         document.getElementById('btn-reset-prog').addEventListener('click', () => {
             config.level2Unlocked = false;
-            saveSettings(config);
+            saveConfig(config);
             updateUIState();
-            playMenuClick();
+            playClickSound();
         });
 
         window.onload = () => {
-            initBackground();
+            init3DBackground();
             updateUIState();
+            updateClock();
         };
     </script>
 </body>

@@ -1,6 +1,5 @@
-const CACHE_NAME = 'substratum-v1.16.7';
+const CACHE_NAME = 'substratum-v1.16.8';
 
-// Files to cache for offline play
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -9,19 +8,18 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
   './icon-192.png',
-  './icon-512.png' // Fixed typo (changed ':/' to './')
+  './icon-512.png'
 ];
 
-// Install Event - Pre-cache game assets
+// Install: Skip waiting to replace old worker immediately
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
 });
 
-// Activate Event - Clean up old cache versions
+// Activate: Delete ALL old cache storage keys and claim clients
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -36,23 +34,11 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Serve cached assets first, fallback to network
+// Fetch: Serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((response) => {
-        // Cache external CDN resources like Three.js dynamically
-        if (event.request.url.includes('cdnjs.cloudflare.com')) {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        }
-        return response;
-      });
+      return cachedResponse || fetch(event.request);
     })
   );
 });

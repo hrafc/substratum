@@ -1,4 +1,4 @@
-const CACHE_NAME = 'substratum-v1.16.8';
+const CACHE_NAME = 'substratum-v1.17.7';
 
 const ASSETS_TO_CACHE = [
   './',

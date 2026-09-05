@@ -1,4 +1,4 @@
-const CACHE_NAME = 'substratum-v1.16.6';
+const CACHE_NAME = 'substratum-v1.16.7';
 
 // Files to cache for offline play
 const ASSETS_TO_CACHE = [
@@ -7,7 +7,9 @@ const ASSETS_TO_CACHE = [
   './level1.html',
   './level2.html',
   './manifest.json',
-  'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+  './icon-192.png',
+  ':/icon-512.png'
 ];
 
 // Install Event - Pre-cache game assets

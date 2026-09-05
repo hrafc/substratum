@@ -9,7 +9,7 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
   './icon-192.png',
-  ':/icon-512.png'
+  './icon-512.png' // Fixed typo (changed ':/' to './')
 ];
 
 // Install Event - Pre-cache game assets

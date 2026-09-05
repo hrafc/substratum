@@ -3,19 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- PWA Manifest & Service Worker Registration -->
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#8b0000">
-
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('SUBSTRATUM SW Active:', reg.scope))
-            .catch(err => console.error('SUBSTRATUM SW Failed:', err));
-        });
-      }
-    </script>
     <title>SUBSTRATUM: PROTOCOL 9 - LEVEL 2</title>
     <style>
         * {
@@ -78,6 +65,17 @@
             transform: translate(-50%, -50%) scale(2.5);
             background: rgba(255, 30, 30, 0.8);
         }
+        #hold-progress-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            pointer-events: none;
+            display: none;
+            z-index: 25;
+        }
         #hud {
             font-size: 13px;
             letter-spacing: 2px;
@@ -100,7 +98,13 @@
             width: 100%;
             height: 100%;
             background: #880000;
-            transition: width 0.1s linear;
+            transition: width 0.1s linear, background-color 0.2s ease;
+        }
+        #battery-bar {
+            width: 100%;
+            height: 100%;
+            background: #ffaa00;
+            transition: width 0.1s linear, background-color 0.2s ease;
         }
         #proximity-bar {
             width: 0%;
@@ -202,13 +206,13 @@
             background: #2a2a2a;
             border-color: #777;
         }
-        #start-screen, #game-over-screen {
+        #start-screen, #game-over-screen, #pause-screen {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: #030303;
+            background: rgba(3, 3, 3, 0.96);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -218,9 +222,34 @@
             text-align: center;
             padding: 20px;
         }
-        #game-over-screen {
+        #game-over-screen, #pause-screen {
             display: none;
-            background: #000;
+        }
+        #pause-screen {
+            z-index: 90;
+            background: rgba(5, 5, 8, 0.92);
+        }
+        .settings-box {
+            background: rgba(15, 15, 20, 0.8);
+            border: 1px solid #442222;
+            padding: 20px 30px;
+            margin: 20px 0;
+            width: 320px;
+            text-align: left;
+            font-size: 12px;
+            letter-spacing: 1px;
+            color: #ccc;
+        }
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .settings-row input[type=range] {
+            width: 120px;
+            accent-color: #ff3333;
+            cursor: pointer;
         }
         h1 {
             font-size: 3rem;
@@ -244,6 +273,8 @@
             cursor: pointer;
             transition: all 0.2s ease;
             font-family: inherit;
+            margin: 6px 0;
+            width: 260px;
         }
         .btn:hover {
             background: #8b0000;
@@ -272,13 +303,26 @@
 
     <canvas id="minimap" width="140" height="140"></canvas>
 
+    <div id="hold-progress-container">
+        <svg width="80" height="80">
+            <circle cx="40" cy="40" r="32" stroke="rgba(255,255,255,0.15)" stroke-width="6" fill="none" />
+            <circle id="hold-progress-circle" cx="40" cy="40" r="32" stroke="#ff2222" stroke-width="6" fill="none" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 40 40)" stroke-linecap="round" />
+        </svg>
+    </div>
+
     <div id="ui-overlay">
         <div id="hud">
             <div class="stat-group">
                 LOGS COLLECTED: <span id="log-count">0/5</span>
             </div>
-            <div class="stat-group" id="task-status" style="display:none; color: #ffaa00;">
-                TASK: <span id="task-state">SEARCH 16x16 GRID FOR CODE</span>
+            <div class="stat-group" id="task-status">
+                TASK: <span id="task-state" style="color: #ffaa00;">1. COLLECT 5 AUDIO LOGS</span>
+            </div>
+            <div class="stat-group">
+                FLASHLIGHT BATTERY
+                <div class="bar-container">
+                    <div id="battery-bar"></div>
+                </div>
             </div>
             <div class="stat-group">
                 STAMINA
@@ -313,12 +357,33 @@
         </div>
     </div>
 
+    <div id="pause-screen">
+        <h1 style="font-size: 2.2rem; color: #ff3333;">SYSTEM PAUSED</h1>
+        <p class="sub" style="margin-bottom: 15px;">SUB-LEVEL 2 OVERRIDE</p>
+        
+        <button class="btn" id="resume-btn">1. RESUME GAME</button>
+        
+        <div class="settings-box">
+            <div style="text-align: center; color: #ff5555; margin-bottom: 15px; font-weight: bold;">GRAPHICS & CONTROLS</div>
+            <div class="settings-row">
+                <span>SENSITIVITY</span>
+                <input type="range" id="sens-slider" min="0.0005" max="0.005" step="0.0005" value="0.002">
+            </div>
+            <div class="settings-row">
+                <span>SHADOWS</span>
+                <button class="modal-btn" id="shadow-toggle">ENABLED</button>
+            </div>
+        </div>
+
+        <button class="btn" id="quit-btn" style="border-color: #662222; color: #aa5555;">2. QUIT GAME</button>
+    </div>
+
     <div id="start-screen">
         <h1>SUBSTRATUM: LEVEL 2</h1>
         <p class="sub">PROTOCOL 9 • LOWER SUB-LEVELS</p>
         <p style="color: #888; max-width: 460px; margin-bottom: 25px; line-height: 1.5; font-size: 0.85rem;">
-            WARNING: Level 2 contains darker corridors, dim flashlight, 5 hidden logs, a 6-digit safe lock, and reduced stamina.<br><br>
-            Controls: [W A S D] Move | [SHIFT] Sprint | [F] Flashlight | [E] Interact
+            WARNING: Level 2 contains dark corridors, limited flashlight battery (find 6 batteries to recharge), 5 logs, safe lock keys, a crowbar, wooden door barriers, and stamina depletion.<br><br>
+            Controls: [W A S D] Move | [SHIFT] Sprint | [F] Flashlight | [E] Interact / Hold | [ESC] Pause
         </p>
         <button class="btn" id="start-btn">ENTER SUB-LEVEL 2</button>
     </div>
@@ -348,17 +413,25 @@
             rot: new THREE.Vector2(0, 0),
             velocity: new THREE.Vector3(),
             stamina: 100,
+            battery: 100,
             isSprinting: false,
+            isExhausted: false,
             flashlightOn: true,
             logsCollected: 0
         };
 
         let keys = {};
         let isPointerLocked = false;
+        let gameStarted = false;
+        let isPaused = false;
+        let isModalOpen = false;
+        let isGameOver = false;
+
         let audioCtx, droneOsc;
         let chaseOsc, chaseGain, chaseFilter;
         let colliders = [];
         let notes = [];
+        let batteries = [];
 
         let stalkerGroup = null;
         let stalkerHeadGroup = null;
@@ -369,23 +442,44 @@
         let heartLight = null;
         let stalkerActive = false;
         let activeNoteIndex = -1;
+        let activeBatteryIndex = -1;
         let lastFootstepTime = 0;
         let lastHeartbeat = 0;
         let lastZombieGrowlTime = 0;
         let currentShake = 0;
 
+        // Puzzle Items & States
         let secretCode = "";
+        let puzzlePhase = 1;
+        let safeKeyMesh = null;
+        let lockboxMesh = null;
+        let exitDoorGroup = null;
+        let woodenBarrierGroup = null;
+        let codeClueMesh = null;
+        let heavySafeMesh = null;
+
+        let safeKeyPos = new THREE.Vector3();
+        let lockboxPos = new THREE.Vector3();
+        let exitDoorPos = new THREE.Vector3(54, 0, 52.05);
         let codePos = new THREE.Vector3();
         let safePos = new THREE.Vector3();
-        let puzzleSpawned = false;
+
+        let hasSafeKey = false;
+        let hasCrowbar = false;
+        let barrierBroken = false;
         let codeFound = false;
         let safeUnlocked = false;
-        let hasKey = false;
-        let codeClueMesh = null;
-        let safeMesh = null;
+        let hasExitKey = false;
+
+        let isNearSafeKey = false;
+        let isNearLockbox = false;
+        let isNearExitDoor = false;
         let isNearCodeClue = false;
-        let isNearSafe = false;
+        let isNearHeavySafe = false;
         let isJumpscaring = false;
+
+        let holdETime = 0;
+        const REQUIRED_HOLD_TIME = 10.0;
 
         const MAZE_GRID = [
             [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
@@ -401,60 +495,36 @@
             [1,0,1,0,1,1,1,0,1,1,1,1,0,1,0,1],
             [1,0,1,0,0,0,1,0,0,0,8,1,0,0,0,1],
             [1,0,1,1,1,0,1,1,1,0,1,1,0,1,1,1],
-            [1,0,0,0,1,0,0,0,1,0,0,0,0,0,3,1],
+            [1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,1],
             [1,1,1,0,0,0,1,0,0,0,1,1,1,1,0,1],
             [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
         ];
 
         const LOG_DATA = [
-            {
-                title: "AUDIO LOG #1 - DEEP CORE",
-                text: "Sub-Level 2 atmosphere is deteriorating. The structural supports are groaning under pressure. Gather all 5 field reports before advancing."
-            },
-            {
-                title: "AUDIO LOG #2 - SQUAD DISPATCH",
-                text: "We lost radio contact with the lower sump team. The entity is active in the grid corridors. Keep your flashlight usage controlled."
-            },
-            {
-                title: "AUDIO LOG #3 - ANOMALY STUDY",
-                text: "It moves on foot along the concrete floor. It responds instantly to footsteps and metallic lock mechanisms."
-            },
-            {
-                title: "AUDIO LOG #4 - SECURITY PROTOCOL",
-                text: "The master vault override was expanded to a 6-digit high-security sequence. Do not lose the clipboard."
-            },
-            {
-                title: "AUDIO LOG #5 - FINAL TRANSMISSION",
-                text: "All 5 logs secured. Locate the handwritten 6-digit clipboard note in the south tunnels, enter the code at the north vault, and run for the blast exit!"
-            }
+            { title: "AUDIO LOG #1 - DEEP CORE", text: "Sub-Level 2 atmosphere is deteriorating. Collect all 5 logs to locate sector equipment keys and override blast protocols." },
+            { title: "AUDIO LOG #2 - SQUAD DISPATCH", text: "We lost radio contact with the lower team. Power grid is collapsing. Keep flashlight battery stocked using spare batteries." },
+            { title: "AUDIO LOG #3 - ANOMALY STUDY", text: "The mutated creature in Sector 9 hunts by sound. It responds instantly to lock mechanisms and footsteps." },
+            { title: "AUDIO LOG #4 - SECURITY PROTOCOL", text: "The exit blast door is barricaded with wooden beams. Use the heavy crowbar inside the locked equipment locker." },
+            { title: "AUDIO LOG #5 - FINAL TRANSMISSION", text: "All 5 logs secured. Search for the safe key, retrieve the crowbar, smash the exit door barrier, recover the 6-digit code, and unlock the heavy vault!" }
         ];
 
-        // LEVEL 2 ENHANCED PROCEDURAL CORRODED STEEL BUNKER WALL TEXTURE
         function generateWallTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
+            canvas.width = 512; canvas.height = 512;
             const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = '#0a0b0e';
-            ctx.fillRect(0, 0, 512, 512);
-
-            const panelW = 128;
-            const panels = 512 / panelW;
+            ctx.fillStyle = '#0a0b0e'; ctx.fillRect(0, 0, 512, 512);
+            const panelW = 128, panels = 512 / panelW;
 
             for (let p = 0; p < panels; p++) {
                 const px = p * panelW;
-
                 ctx.fillStyle = '#111318';
                 ctx.fillRect(px + 3, 0, panelW - 6, 512);
-
                 const grad = ctx.createLinearGradient(px, 0, px + panelW, 0);
                 grad.addColorStop(0, 'rgba(255,255,255,0.05)');
                 grad.addColorStop(0.15, 'rgba(0,0,0,0)');
                 grad.addColorStop(0.85, 'rgba(0,0,0,0.4)');
                 grad.addColorStop(1, 'rgba(0,0,0,0.85)');
-                ctx.fillStyle = grad;
-                ctx.fillRect(px, 0, panelW, 512);
+                ctx.fillStyle = grad; ctx.fillRect(px, 0, panelW, 512);
 
                 ctx.fillStyle = '#3a3d45';
                 for (let ry = 16; ry < 512; ry += 32) {
@@ -463,13 +533,9 @@
                 }
             }
 
-            ctx.strokeStyle = '#030405';
-            ctx.lineWidth = 6;
+            ctx.strokeStyle = '#030405'; ctx.lineWidth = 6;
             for (let p = 0; p <= panels; p++) {
-                ctx.beginPath();
-                ctx.moveTo(p * panelW, 0);
-                ctx.lineTo(p * panelW, 512);
-                ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(p * panelW, 0); ctx.lineTo(p * panelW, 512); ctx.stroke();
             }
 
             const imgData = ctx.getImageData(0, 0, 512, 512);
@@ -482,55 +548,37 @@
             ctx.putImageData(imgData, 0, 0);
 
             for (let r = 0; r < 25; r++) {
-                const rx = Math.random() * 512;
-                const ry = Math.random() * 250;
-                const h = 80 + Math.random() * 280;
-                const w = 3 + Math.random() * 10;
-
+                const rx = Math.random() * 512, ry = Math.random() * 250, h = 80 + Math.random() * 280, w = 3 + Math.random() * 10;
                 const rustGrad = ctx.createLinearGradient(rx, ry, rx, ry + h);
                 rustGrad.addColorStop(0, 'rgba(92, 29, 12, 0.8)');
                 rustGrad.addColorStop(0.6, 'rgba(60, 18, 8, 0.45)');
                 rustGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-                ctx.fillStyle = rustGrad;
-                ctx.fillRect(rx, ry, w, h);
+                ctx.fillStyle = rustGrad; ctx.fillRect(rx, ry, w, h);
             }
 
             const slimeGrad = ctx.createLinearGradient(0, 320, 0, 512);
             slimeGrad.addColorStop(0, 'rgba(0,0,0,0)');
             slimeGrad.addColorStop(1, 'rgba(10, 30, 12, 0.7)');
-            ctx.fillStyle = slimeGrad;
-            ctx.fillRect(0, 320, 512, 192);
+            ctx.fillStyle = slimeGrad; ctx.fillRect(0, 320, 512, 192);
 
             const texture = new THREE.CanvasTexture(canvas);
-            texture.needsUpdate = true;
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
+            texture.needsUpdate = true; texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
             return texture;
         }
 
-        // LEVEL 2 ENHANCED PROCEDURAL DIAMOND TREAD GRATE & WET SLUDGE FLOOR TEXTURE
         function generateFloorTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
+            canvas.width = 512; canvas.height = 512;
             const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = '#06070a';
-            ctx.fillRect(0, 0, 512, 512);
-
-            const gridSpacing = 16;
-            ctx.strokeStyle = '#181b22';
-            ctx.lineWidth = 1.5;
+            ctx.fillStyle = '#06070a'; ctx.fillRect(0, 0, 512, 512);
+            const gridSpacing = 16; ctx.strokeStyle = '#181b22'; ctx.lineWidth = 1.5;
 
             for (let x = 0; x < 512; x += gridSpacing) {
                 ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 512, 512); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 512, 512); ctx.stroke();
             }
 
-            const frameSize = 128;
-            ctx.strokeStyle = '#020304';
-            ctx.lineWidth = 5;
+            const frameSize = 128; ctx.strokeStyle = '#020304'; ctx.lineWidth = 5;
             for (let f = 0; f <= 512; f += frameSize) {
                 ctx.beginPath(); ctx.moveTo(f, 0); ctx.lineTo(f, 512); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(0, f); ctx.lineTo(512, f); ctx.stroke();
@@ -546,57 +594,37 @@
             ctx.putImageData(imgData, 0, 0);
 
             for (let p = 0; p < 12; p++) {
-                const px = Math.random() * 512;
-                const py = Math.random() * 512;
-                const pr = 25 + Math.random() * 50;
-
+                const px = Math.random() * 512, py = Math.random() * 512, pr = 25 + Math.random() * 50;
                 const poolGrad = ctx.createRadialGradient(px, py, 2, px, py, pr);
                 poolGrad.addColorStop(0, 'rgba(2, 3, 4, 0.95)');
                 poolGrad.addColorStop(0.75, 'rgba(8, 12, 10, 0.45)');
                 poolGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-                ctx.fillStyle = poolGrad;
-                ctx.beginPath();
-                ctx.arc(px, py, pr, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillStyle = poolGrad; ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
             }
 
             const texture = new THREE.CanvasTexture(canvas);
-            texture.needsUpdate = true;
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
+            texture.needsUpdate = true; texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
             return texture;
         }
 
         function generateDemonSkinTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
+            canvas.width = 512; canvas.height = 512;
             const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = '#1c1f24';
-            ctx.fillRect(0, 0, 512, 512);
+            ctx.fillStyle = '#1c1f24'; ctx.fillRect(0, 0, 512, 512);
 
             for (let i = 0; i < 900; i++) {
                 ctx.strokeStyle = Math.random() > 0.7 ? '#660d0d' : (Math.random() > 0.5 ? '#0c0d0f' : '#2d333b');
                 ctx.lineWidth = Math.random() * 3 + 0.5;
-                ctx.beginPath();
-                ctx.moveTo(Math.random() * 512, Math.random() * 512);
-                ctx.lineTo(Math.random() * 512, Math.random() * 512);
-                ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(Math.random() * 512, Math.random() * 512); ctx.lineTo(Math.random() * 512, Math.random() * 512); ctx.stroke();
             }
 
             for (let i = 0; i < 400; i++) {
-                ctx.fillStyle = 'rgba(3, 3, 5, 0.6)';
-                ctx.beginPath();
-                ctx.arc(Math.random() * 512, Math.random() * 512, Math.random() * 4 + 1, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillStyle = 'rgba(3, 3, 5, 0.6)'; ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, Math.random() * 4 + 1, 0, Math.PI * 2); ctx.fill();
             }
 
             const texture = new THREE.CanvasTexture(canvas);
-            texture.needsUpdate = true;
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
+            texture.needsUpdate = true; texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
             return texture;
         }
 
@@ -635,6 +663,8 @@
             minimapCtx = minimapCanvas.getContext('2d');
 
             buildEnvironment();
+            create3DExitDoorAndBarrier();
+            spawnBatteries();
             createMutatedAshMonster();
 
             window.addEventListener('resize', onWindowResize);
@@ -647,13 +677,26 @@
             document.getElementById('note-close').addEventListener('click', closeNoteModal);
             document.getElementById('safe-submit').addEventListener('click', submitSafeCode);
             document.getElementById('safe-cancel').addEventListener('click', closeSafeModal);
+            
+            // Pause & Settings UI Listeners
+            document.getElementById('resume-btn').addEventListener('click', resumeGame);
+            document.getElementById('quit-btn').addEventListener('click', () => location.reload());
+            
+            const sensSlider = document.getElementById('sens-slider');
+            sensSlider.addEventListener('input', (e) => {
+                CONFIG.sens = parseFloat(e.target.value);
+            });
+
+            const shadowBtn = document.getElementById('shadow-toggle');
+            shadowBtn.addEventListener('click', () => {
+                renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
+                shadowBtn.innerText = renderer.shadowMap.enabled ? "ENABLED" : "DISABLED";
+            });
         }
 
         function buildEnvironment() {
-            const wallTex = generateWallTexture();
-            wallTex.repeat.set(1, 1);
-            const floorTex = generateFloorTexture();
-            floorTex.repeat.set(16, 16);
+            const wallTex = generateWallTexture(); wallTex.repeat.set(1, 1);
+            const floorTex = generateFloorTexture(); floorTex.repeat.set(16, 16);
 
             const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85, metalness: 0.35 });
             const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.70, metalness: 0.30 });
@@ -683,8 +726,7 @@
                     if (cell === 1) {
                         const wall = new THREE.Mesh(wallGeo, wallMat);
                         wall.position.set(x, CONFIG.wallHeight / 2, z);
-                        wall.castShadow = true;
-                        wall.receiveShadow = true;
+                        wall.castShadow = true; wall.receiveShadow = true;
                         scene.add(wall);
                         colliders.push(new THREE.Box3().setFromObject(wall));
                     } else if (cell === 2) {
@@ -696,13 +738,76 @@
             }
         }
 
+        function create3DExitDoorAndBarrier() {
+            exitDoorGroup = new THREE.Group();
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x1f2329, metalness: 0.85, roughness: 0.3 });
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x8b0000, metalness: 0.6, roughness: 0.4 });
+            const lightMat = new THREE.MeshBasicMaterial({ color: 0xff1111 });
+
+            const leftPillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, CONFIG.wallHeight, 0.5), frameMat);
+            leftPillar.position.set(-1.6, CONFIG.wallHeight / 2, 0);
+            exitDoorGroup.add(leftPillar);
+
+            const rightPillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, CONFIG.wallHeight, 0.5), frameMat);
+            rightPillar.position.set(1.6, CONFIG.wallHeight / 2, 0);
+            exitDoorGroup.add(rightPillar);
+
+            const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.4, 0.5), frameMat);
+            lintel.position.set(0, CONFIG.wallHeight - 0.2, 0);
+            exitDoorGroup.add(lintel);
+
+            const doorSlab = new THREE.Mesh(new THREE.BoxGeometry(2.8, CONFIG.wallHeight - 0.4, 0.18), doorMat);
+            doorSlab.position.set(0, (CONFIG.wallHeight - 0.4) / 2, -0.1);
+            exitDoorGroup.add(doorSlab);
+
+            const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.15, 10), lightMat);
+            beacon.position.set(0, CONFIG.wallHeight - 0.45, 0.22);
+            beacon.rotation.x = Math.PI / 2;
+            exitDoorGroup.add(beacon);
+
+            const exitLight = new THREE.PointLight(0xff0000, 1.6, 3.5);
+            exitLight.position.set(0, CONFIG.wallHeight - 0.45, 0.4);
+            exitDoorGroup.add(exitLight);
+
+            exitDoorGroup.rotation.y = 0;
+            exitDoorGroup.position.copy(exitDoorPos);
+            scene.add(exitDoorGroup);
+
+            woodenBarrierGroup = new THREE.Group();
+            const plankMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 });
+            const nailMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 });
+
+            for (let i = 0; i < 5; i++) {
+                const plank = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.38, 0.12), plankMat);
+                plank.position.set(0, 0.5 + (i * 0.6), 0.2);
+                plank.rotation.z = (i % 2 === 0 ? 0.08 : -0.08);
+                woodenBarrierGroup.add(plank);
+
+                for (let n = -1.4; n <= 1.4; n += 2.8) {
+                    const nail = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.14, 6), nailMat);
+                    nail.rotation.x = Math.PI / 2;
+                    nail.position.set(n, 0.5 + (i * 0.6), 0.22);
+                    woodenBarrierGroup.add(nail);
+                }
+            }
+
+            woodenBarrierGroup.rotation.y = 0;
+            woodenBarrierGroup.position.copy(exitDoorPos);
+            scene.add(woodenBarrierGroup);
+
+            const barrierColliderMesh = new THREE.Mesh(new THREE.BoxGeometry(3.6, CONFIG.wallHeight, 0.6));
+            barrierColliderMesh.position.set(exitDoorPos.x, CONFIG.wallHeight/2, exitDoorPos.z + 0.2);
+            const barrierBox = new THREE.Box3().setFromObject(barrierColliderMesh);
+            colliders.push(barrierBox);
+            woodenBarrierGroup.userData = { collider: barrierBox };
+        }
+
         function createNote(x, z, index) {
             const group = new THREE.Group();
             const paperGeo = new THREE.PlaneGeometry(0.4, 0.5);
             const paperMat = new THREE.MeshBasicMaterial({ color: 0xffccaa, side: THREE.DoubleSide });
             const paper = new THREE.Mesh(paperGeo, paperMat);
-            paper.rotation.x = -Math.PI / 2;
-            paper.position.y = 0.02;
+            paper.rotation.x = -Math.PI / 2; paper.position.y = 0.02;
             group.add(paper);
 
             const pointLight = new THREE.PointLight(0xff8800, 1.2, 3);
@@ -712,504 +817,336 @@
             group.position.set(x, 0, z);
             scene.add(group);
 
-            notes.push({
-                mesh: group,
-                pos: new THREE.Vector3(x, 0.5, z),
-                index: index,
-                collected: false
-            });
+            notes.push({ mesh: group, pos: new THREE.Vector3(x, 0.5, z), index: index, collected: false });
         }
 
-        function spawnPuzzleElements() {
+        function spawnBatteries() {
+            const batteryLocs = [{r: 1, c: 3}, {r: 3, c: 10}, {r: 5, c: 5}, {r: 7, c: 1}, {r: 9, c: 12}, {r: 11, c: 4}];
+            const battMatBody = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.3, metalness: 0.8 });
+            const battMatRim = new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.2, metalness: 0.9 });
+
+            for (let loc of batteryLocs) {
+                const x = loc.c * CONFIG.tileSize + CONFIG.tileSize / 2;
+                const z = loc.r * CONFIG.tileSize + CONFIG.tileSize / 2;
+
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.28, 12), battMatBody);
+                body.position.y = 0.14; group.add(body);
+
+                const topRim = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.082, 0.06, 12), battMatRim);
+                topRim.position.y = 0.22; group.add(topRim);
+
+                const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 10), battMatRim);
+                tip.position.y = 0.28; group.add(tip);
+
+                const pLight = new THREE.PointLight(0xffaa00, 0.8, 1.8);
+                pLight.position.y = 0.35; group.add(pLight);
+
+                group.position.set(x, 0, z);
+                scene.add(group);
+
+                batteries.push({ mesh: group, pos: new THREE.Vector3(x, 0.3, z), collected: false });
+            }
+        }
+
+        function triggerPhase2() {
+            puzzlePhase = 2;
+            document.getElementById('task-state').innerText = "2. FIND SAFE KEY FOR LOCKBOX";
+            document.getElementById('task-state').style.color = "#ffcc00";
+
+            safeKeyPos.set(3 * CONFIG.tileSize + 2, 0.1, 11 * CONFIG.tileSize + 2);
+            lockboxPos.set(1 * CONFIG.tileSize + 2, 0.5, 9 * CONFIG.tileSize + 2);
+
+            safeKeyMesh = new THREE.Group();
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.02, 8, 16), new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.9, roughness: 0.2 }));
+            ring.rotation.x = Math.PI / 2; safeKeyMesh.add(ring);
+
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.25, 8), new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.9, roughness: 0.2 }));
+            shaft.rotation.z = Math.PI / 2; shaft.position.set(0.14, 0, 0); safeKeyMesh.add(shaft);
+
+            const keyLight = new THREE.PointLight(0xffaa00, 1.0, 2.0); keyLight.position.set(0, 0.2, 0); safeKeyMesh.add(keyLight);
+            safeKeyMesh.position.copy(safeKeyPos); scene.add(safeKeyMesh);
+
+            lockboxMesh = new THREE.Group();
+            const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0x22252a, metalness: 0.8, roughness: 0.3 }));
+            box.position.y = 0.25; lockboxMesh.add(box);
+            const keyhole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 10), new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.9 }));
+            keyhole.rotation.x = Math.PI / 2; keyhole.position.set(0, 0.28, 0.26); lockboxMesh.add(keyhole);
+
+            const lockLight = new THREE.PointLight(0x00aaff, 0.8, 2.0); lockLight.position.set(0, 0.4, 0.3); lockboxMesh.add(lockLight);
+            lockboxMesh.position.copy(lockboxPos); scene.add(lockboxMesh);
+        }
+
+        function triggerPhase3() {
+            puzzlePhase = 3;
             secretCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-            let safeCandidateCells = [];
-            let clueCandidateCells = [];
+            document.getElementById('task-state').innerText = "3. RECOVER 6-DIGIT CODE & UNLOCK VAULT";
+            document.getElementById('task-state').style.color = "#00ffcc";
 
-            for (let r = 0; r < CONFIG.mapSize; r++) {
-                for (let c = 0; c < CONFIG.mapSize; c++) {
-                    if (MAZE_GRID[r][c] === 0) {
-                        const x = c * CONFIG.tileSize + CONFIG.tileSize / 2;
-                        const z = r * CONFIG.tileSize + CONFIG.tileSize / 2;
-
-                        if (r <= 4 && c <= 7) {
-                            safeCandidateCells.push({x, z});
-                        } else if (r >= 10 && c <= 7) {
-                            clueCandidateCells.push({x, z});
-                        }
-                    }
-                }
-            }
-
-            if (safeCandidateCells.length === 0) safeCandidateCells.push({x: 1.5*CONFIG.tileSize, z: 1.5*CONFIG.tileSize});
-            if (clueCandidateCells.length === 0) clueCandidateCells.push({x: 1.5*CONFIG.tileSize, z: 11.5*CONFIG.tileSize});
-
-            const safeCell = safeCandidateCells[Math.floor(Math.random() * safeCandidateCells.length)];
-            const clueCell = clueCandidateCells[Math.floor(Math.random() * clueCandidateCells.length)];
-
-            codePos.set(clueCell.x, 0.4, clueCell.z);
-            safePos.set(safeCell.x, 0.6, safeCell.z);
+            codePos.set(12 * CONFIG.tileSize + 2, 0.05, 11 * CONFIG.tileSize + 2);
+            safePos.set(1 * CONFIG.tileSize + 2, 0.6, 1 * CONFIG.tileSize + 2);
 
             codeClueMesh = new THREE.Group();
-            const board = new THREE.Mesh(
-                new THREE.BoxGeometry(0.5, 0.03, 0.7), 
-                new THREE.MeshStandardMaterial({ color: 0x2e1a0e, roughness: 0.9 })
-            );
+            const board = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.03, 0.7), new THREE.MeshStandardMaterial({ color: 0x2e1a0e, roughness: 0.9 }));
             codeClueMesh.add(board);
+            const paper = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.01, 0.58), new THREE.MeshStandardMaterial({ color: 0xc9b899, roughness: 0.6 }));
+            paper.position.set(0, 0.02, 0.02); codeClueMesh.add(paper);
 
-            const paper = new THREE.Mesh(
-                new THREE.BoxGeometry(0.42, 0.01, 0.58), 
-                new THREE.MeshStandardMaterial({ color: 0xc9b899, roughness: 0.6 })
-            );
-            paper.position.set(0, 0.02, 0.02);
-            codeClueMesh.add(paper);
+            const clip = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.08), new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.9, roughness: 0.2 }));
+            clip.position.set(0, 0.035, -0.26); codeClueMesh.add(clip);
 
-            const clip = new THREE.Mesh(
-                new THREE.BoxGeometry(0.2, 0.04, 0.08), 
-                new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.9, roughness: 0.2 })
-            );
-            clip.position.set(0, 0.035, -0.26);
-            codeClueMesh.add(clip);
+            const clueLight = new THREE.PointLight(0xff2200, 1.4, 3.0); clueLight.position.set(0, 0.5, 0); codeClueMesh.add(clueLight);
+            codeClueMesh.position.copy(codePos); scene.add(codeClueMesh);
 
-            const clueLight = new THREE.PointLight(0xff2200, 0.9, 2.0);
-            clueLight.position.set(0, 0.3, 0);
-            codeClueMesh.add(clueLight);
+            heavySafeMesh = new THREE.Group();
+            const outerBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.3, 1.1), new THREE.MeshStandardMaterial({ color: 0x101215, roughness: 0.4, metalness: 0.85 }));
+            outerBox.castShadow = true; outerBox.receiveShadow = true; heavySafeMesh.add(outerBox);
 
-            codeClueMesh.position.copy(codePos);
-            scene.add(codeClueMesh);
+            const door = new THREE.Mesh(new THREE.BoxGeometry(0.88, 1.1, 0.08), new THREE.MeshStandardMaterial({ color: 0x1c2026, roughness: 0.3, metalness: 0.9 }));
+            door.position.set(0, 0, 0.53); heavySafeMesh.add(door);
 
-            safeMesh = new THREE.Group();
-
-            const outerBox = new THREE.Mesh(
-                new THREE.BoxGeometry(1.1, 1.3, 1.1), 
-                new THREE.MeshStandardMaterial({ color: 0x101215, roughness: 0.4, metalness: 0.85 })
-            );
-            outerBox.castShadow = true; outerBox.receiveShadow = true;
-            safeMesh.add(outerBox);
-
-            const door = new THREE.Mesh(
-                new THREE.BoxGeometry(0.88, 1.1, 0.08), 
-                new THREE.MeshStandardMaterial({ color: 0x1c2026, roughness: 0.3, metalness: 0.9 })
-            );
-            door.position.set(0, 0, 0.53);
-            safeMesh.add(door);
-
-            const wheelCenter = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.09, 0.09, 0.06, 16), 
-                new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.9 })
-            );
-            wheelCenter.rotation.x = Math.PI / 2;
-            wheelCenter.position.set(0.2, -0.05, 0.59);
-            safeMesh.add(wheelCenter);
+            const wheelCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.06, 16), new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.9 }));
+            wheelCenter.rotation.x = Math.PI / 2; wheelCenter.position.set(0.2, -0.05, 0.59); heavySafeMesh.add(wheelCenter);
 
             for (let a = 0; a < 3; a++) {
-                const spoke = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.015, 0.015, 0.32, 8), 
-                    new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.9 })
-                );
-                spoke.rotation.z = (a * Math.PI * 2) / 3;
-                spoke.position.set(0.2, -0.05, 0.62);
-                safeMesh.add(spoke);
+                const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.32, 8), new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.9 }));
+                spoke.rotation.z = (a * Math.PI * 2) / 3; spoke.position.set(0.2, -0.05, 0.62); heavySafeMesh.add(spoke);
             }
 
-            const keypad = new THREE.Mesh(
-                new THREE.BoxGeometry(0.28, 0.36, 0.05), 
-                new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.2 })
-            );
-            keypad.position.set(-0.2, 0.2, 0.58);
-            safeMesh.add(keypad);
+            const keypad = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.05), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.2 }));
+            keypad.position.set(-0.2, 0.2, 0.58); heavySafeMesh.add(keypad);
 
-            const safeLight = new THREE.PointLight(0x00aaff, 1.2, 2.5);
-            safeLight.position.set(-0.2, 0.2, 0.65);
-            safeMesh.add(safeLight);
+            const safeLight = new THREE.PointLight(0x00aaff, 1.2, 2.5); safeLight.position.set(-0.2, 0.2, 0.65); heavySafeMesh.add(safeLight);
 
-            safeMesh.position.copy(safePos);
-            scene.add(safeMesh);
-
-            puzzleSpawned = true;
-
-            document.getElementById('task-status').style.display = 'block';
-            document.getElementById('prompt').innerText = "ALL 5 LOGS SECURED. LOCATE THE 6-DIGIT CODE CLIPBOARD!";
-            document.getElementById('prompt').style.display = 'block';
-            document.getElementById('prompt').style.color = '#ffaa00';
-            setTimeout(() => { if (!codeFound) document.getElementById('prompt').style.display = 'none'; }, 5000);
+            heavySafeMesh.position.copy(safePos); scene.add(heavySafeMesh);
         }
 
         function createMutatedAshMonster() {
             stalkerGroup = new THREE.Group();
-
-            const skinMat = new THREE.MeshStandardMaterial({
-                map: generateDemonSkinTexture(),
-                color: 0x5a5e66,
-                roughness: 0.5,
-                metalness: 0.2
-            });
+            const skinMat = new THREE.MeshStandardMaterial({ map: generateDemonSkinTexture(), color: 0x5a5e66, roughness: 0.5, metalness: 0.2 });
             const toothMat = new THREE.MeshStandardMaterial({ color: 0xaa1111, roughness: 0.2 });
             const boneMat = new THREE.MeshStandardMaterial({ color: 0x16171a, roughness: 0.85 });
 
             stalkerLeftLeg = createHeavyLeg(-0.24, skinMat, boneMat);
             stalkerRightLeg = createHeavyLeg(0.24, skinMat, boneMat);
-            stalkerGroup.add(stalkerLeftLeg);
-            stalkerGroup.add(stalkerRightLeg);
+            stalkerGroup.add(stalkerLeftLeg); stalkerGroup.add(stalkerRightLeg);
 
-            const bellyGeo = new THREE.SphereGeometry(0.42, 12, 12);
-            bellyGeo.scale(1.0, 1.35, 0.9);
-            const belly = new THREE.Mesh(bellyGeo, skinMat);
-            belly.position.set(0, 1.3, 0.0);
-            stalkerGroup.add(belly);
+            const bellyGeo = new THREE.SphereGeometry(0.42, 12, 12); bellyGeo.scale(1.0, 1.35, 0.9);
+            const belly = new THREE.Mesh(bellyGeo, skinMat); belly.position.set(0, 1.3, 0.0); stalkerGroup.add(belly);
 
             const chestGeo = new THREE.CylinderGeometry(0.42, 0.36, 0.75, 10);
-            const chest = new THREE.Mesh(chestGeo, skinMat);
-            chest.position.set(0, 1.88, 0);
-            stalkerGroup.add(chest);
+            const chest = new THREE.Mesh(chestGeo, skinMat); chest.position.set(0, 1.88, 0); stalkerGroup.add(chest);
 
             for (let i = 0; i < 7; i++) {
                 const spineSpike = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.28, 4), boneMat);
-                spineSpike.position.set(0, 1.05 + (i * 0.18), -0.32);
-                spineSpike.rotation.x = -Math.PI / 3;
-                stalkerGroup.add(spineSpike);
+                spineSpike.position.set(0, 1.05 + (i * 0.18), -0.32); spineSpike.rotation.x = -Math.PI / 3; stalkerGroup.add(spineSpike);
             }
 
-            heartLight = new THREE.PointLight(0xff2200, 1.8, 3.0);
-            heartLight.position.set(0, 1.85, 0.25);
-            stalkerGroup.add(heartLight);
+            heartLight = new THREE.PointLight(0xff2200, 1.8, 3.0); heartLight.position.set(0, 1.85, 0.25); stalkerGroup.add(heartLight);
 
-            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.35, 8), skinMat);
-            neck.position.set(0, 2.28, 0.02);
-            stalkerGroup.add(neck);
+            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.35, 8), skinMat); neck.position.set(0, 2.28, 0.02); stalkerGroup.add(neck);
 
-            stalkerHeadGroup = new THREE.Group();
-            stalkerHeadGroup.position.set(0, 2.55, 0.04);
-
-            const skullGeo = new THREE.SphereGeometry(0.25, 12, 12);
-            skullGeo.scale(0.95, 1.25, 1.15);
-            const skull = new THREE.Mesh(skullGeo, skinMat);
-            stalkerHeadGroup.add(skull);
+            stalkerHeadGroup = new THREE.Group(); stalkerHeadGroup.position.set(0, 2.55, 0.04);
+            const skullGeo = new THREE.SphereGeometry(0.25, 12, 12); skullGeo.scale(0.95, 1.25, 1.15);
+            const skull = new THREE.Mesh(skullGeo, skinMat); stalkerHeadGroup.add(skull);
 
             for (let h = -1; h <= 1; h += 2) {
                 const horn = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.35, 5), boneMat);
-                horn.position.set(h * 0.18, 0.22, -0.05);
-                horn.rotation.z = -h * 0.5;
-                horn.rotation.x = -0.3;
-                stalkerHeadGroup.add(horn);
+                horn.position.set(h * 0.18, 0.22, -0.05); horn.rotation.z = -h * 0.5; horn.rotation.x = -0.3; stalkerHeadGroup.add(horn);
             }
 
-            const mouthSlot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, 0.12), toothMat);
-            mouthSlot.position.set(0, -0.06, 0.18);
-            stalkerHeadGroup.add(mouthSlot);
+            const mouthSlot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, 0.12), toothMat); mouthSlot.position.set(0, -0.06, 0.18); stalkerHeadGroup.add(mouthSlot);
 
             for (let t = -0.05; t <= 0.05; t += 0.025) {
                 const toothUpper = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.08, 4), toothMat);
-                toothUpper.position.set(t, -0.01, 0.22);
-                toothUpper.rotation.x = Math.PI;
-                stalkerHeadGroup.add(toothUpper);
+                toothUpper.position.set(t, -0.01, 0.22); toothUpper.rotation.x = Math.PI; stalkerHeadGroup.add(toothUpper);
 
                 const toothLower = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.08, 4), toothMat);
-                toothLower.position.set(t, -0.11, 0.22);
-                toothLower.rotation.x = Math.PI;
-                stalkerHeadGroup.add(toothLower);
+                toothLower.position.set(t, -0.11, 0.22); toothLower.rotation.x = Math.PI; stalkerHeadGroup.add(toothLower);
             }
 
-            const eyeGeo = new THREE.SphereGeometry(0.038, 8, 8);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+            const eyeGeo = new THREE.SphereGeometry(0.038, 8, 8), eyeMat = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+            const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.09, 0.09, 0.21);
+            const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.09, 0.09, 0.21);
+            stalkerHeadGroup.add(eyeL); stalkerHeadGroup.add(eyeR);
 
-            const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-            eyeL.position.set(-0.09, 0.09, 0.21);
-            const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-            eyeR.position.set(0.09, 0.09, 0.21);
-            stalkerHeadGroup.add(eyeL);
-            stalkerHeadGroup.add(eyeR);
-
-            const eyeLight = new THREE.PointLight(0xff6600, 2.5, 4.0);
-            eyeLight.position.set(0, 0.09, 0.26);
-            stalkerHeadGroup.add(eyeLight);
+            const eyeLight = new THREE.PointLight(0xff6600, 2.5, 4.0); eyeLight.position.set(0, 0.09, 0.26); stalkerHeadGroup.add(eyeLight);
 
             stalkerGroup.add(stalkerHeadGroup);
-
             stalkerLeftArm = createHeavyArm(-0.46, skinMat, boneMat);
             stalkerRightArm = createHeavyArm(0.46, skinMat, boneMat);
-            stalkerGroup.add(stalkerLeftArm);
-            stalkerGroup.add(stalkerRightArm);
+            stalkerGroup.add(stalkerLeftArm); stalkerGroup.add(stalkerRightArm);
 
-            stalkerGroup.position.set(-100, 0, -100);
-            scene.add(stalkerGroup);
+            stalkerGroup.position.set(-100, 0, -100); scene.add(stalkerGroup);
         }
 
         function createHeavyLeg(offsetX, skinMat, boneMat) {
-            const leg = new THREE.Group();
-            leg.position.set(offsetX, 1.25, 0);
-
-            const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.65, 8), skinMat);
-            thigh.position.set(0, -0.325, 0);
-            leg.add(thigh);
-
-            const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.6, 8), skinMat);
-            shin.position.set(0, -0.95, 0);
-            leg.add(shin);
-
-            const foot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.09, 0.36), skinMat);
-            foot.position.set(0, -1.205, 0.06);
-            leg.add(foot);
-
+            const leg = new THREE.Group(); leg.position.set(offsetX, 1.25, 0);
+            const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.65, 8), skinMat); thigh.position.set(0, -0.325, 0); leg.add(thigh);
+            const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.6, 8), skinMat); shin.position.set(0, -0.95, 0); leg.add(shin);
+            const foot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.09, 0.36), skinMat); foot.position.set(0, -1.205, 0.06); leg.add(foot);
             return leg;
         }
 
         function createHeavyArm(offsetX, skinMat, boneMat) {
             const arm = new THREE.Group();
             arm.position.set(offsetX, 2.05, 0);
-
+            
             const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), skinMat);
             arm.add(shoulder);
-
+            
             const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.075, 0.8, 8), skinMat);
             upperArm.position.set(0, -0.42, 0);
             arm.add(upperArm);
-
+            
             const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.05, 0.9, 8), skinMat);
             forearm.position.set(0, -1.2, 0.06);
             arm.add(forearm);
-
+            
             for (let f = -0.05; f <= 0.05; f += 0.025) {
                 const claw = new THREE.Mesh(new THREE.ConeGeometry(0.015, 0.28, 4), boneMat);
                 claw.position.set(f, -1.72, 0.12);
                 claw.rotation.x = 0.25;
                 arm.add(claw);
             }
-
             return arm;
         }
 
         function getMonsterNextTile(startR, startC, targetR, targetC) {
-            let queue = [[startR, startC]];
-            let cameFrom = {};
-            cameFrom[`${startR},${startC}`] = null;
-
+            let queue = [[startR, startC]]; let cameFrom = {}; cameFrom[`${startR},${startC}`] = null;
             let found = false;
             while(queue.length > 0) {
                 let [r, c] = queue.shift();
-                if (r === targetR && c === targetC) {
-                    found = true;
-                    break;
-                }
-                const neighbors = [
-                    [r-1, c], [r+1, c], [r, c-1], [r, c+1]
-                ];
+                if (r === targetR && c === targetC) { found = true; break; }
+                const neighbors = [[r-1, c], [r+1, c], [r, c-1], [r, c+1]];
                 for(let [nr, nc] of neighbors) {
                     if (nr >= 0 && nr < CONFIG.mapSize && nc >= 0 && nc < CONFIG.mapSize) {
                         if (MAZE_GRID[nr][nc] !== 1 && !(`${nr},${nc}` in cameFrom)) {
-                            cameFrom[`${nr},${nc}`] = `${r},${c}`;
-                            queue.push([nr, nc]);
+                            cameFrom[`${nr},${nc}`] = `${r},${c}`; queue.push([nr, nc]);
                         }
                     }
                 }
             }
-
             if (!found) return null;
-
-            let curr = `${targetR},${targetC}`;
-            let path = [];
-            while(curr && curr !== `${startR},${startC}`) {
-                path.push(curr);
-                curr = cameFrom[curr];
-            }
+            let curr = `${targetR},${targetC}`; let path = [];
+            while(curr && curr !== `${startR},${startC}`) { path.push(curr); curr = cameFrom[curr]; }
             if (path.length === 0) return null;
-            let nextStep = path[path.length - 1].split(',').map(Number);
-            return nextStep;
+            return path[path.length - 1].split(',').map(Number);
         }
 
         function initAudio() {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
             droneOsc = audioCtx.createOscillator();
-            const droneGain = audioCtx.createGain();
-            droneOsc.type = 'sawtooth';
-            droneOsc.frequency.setValueAtTime(32, audioCtx.currentTime);
-            
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(80, audioCtx.currentTime);
+            const droneGain = audioCtx.createGain(); droneOsc.type = 'sawtooth'; droneOsc.frequency.setValueAtTime(32, audioCtx.currentTime);
+            const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(80, audioCtx.currentTime);
+            droneOsc.connect(filter); filter.connect(droneGain); droneGain.gain.setValueAtTime(0.18, audioCtx.currentTime); droneGain.connect(audioCtx.destination); droneOsc.start();
 
-            droneOsc.connect(filter);
-            filter.connect(droneGain);
-            droneGain.gain.setValueAtTime(0.18, audioCtx.currentTime);
-            droneGain.connect(audioCtx.destination);
-            droneOsc.start();
-
-            chaseOsc = audioCtx.createOscillator();
-            chaseGain = audioCtx.createGain();
-            chaseFilter = audioCtx.createBiquadFilter();
-
-            chaseOsc.type = 'sawtooth';
-            chaseOsc.frequency.setValueAtTime(75, audioCtx.currentTime);
-
-            chaseFilter.type = 'lowpass';
-            chaseFilter.frequency.setValueAtTime(300, audioCtx.currentTime);
-
+            chaseOsc = audioCtx.createOscillator(); chaseGain = audioCtx.createGain(); chaseFilter = audioCtx.createBiquadFilter();
+            chaseOsc.type = 'sawtooth'; chaseOsc.frequency.setValueAtTime(75, audioCtx.currentTime);
+            chaseFilter.type = 'lowpass'; chaseFilter.frequency.setValueAtTime(300, audioCtx.currentTime);
             chaseGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+            chaseOsc.connect(chaseFilter); chaseFilter.connect(chaseGain); chaseGain.connect(audioCtx.destination); chaseOsc.start();
+        }
 
-            chaseOsc.connect(chaseFilter);
-            chaseFilter.connect(chaseGain);
-            chaseGain.connect(audioCtx.destination);
-            chaseOsc.start();
+        function playWoodBreakSound() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime, bufferSize = audioCtx.sampleRate * 0.4;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.08));
+            const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 600;
+            const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.9, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination); noise.start(now);
+        }
+
+        function playBatteryPickupSound() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime, osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+            osc.type = 'sine'; osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+            gain.gain.setValueAtTime(0.4, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 0.15);
         }
 
         function playZombieGrowl() {
             if (!audioCtx) return;
-            const now = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            const filter = audioCtx.createBiquadFilter();
-
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(55 + Math.random() * 35, now);
-            osc.frequency.linearRampToValueAtTime(115 + Math.random() * 45, now + 0.35);
-            osc.frequency.exponentialRampToValueAtTime(35, now + 0.95);
-
-            filter.type = 'bandpass';
-            filter.frequency.setValueAtTime(320, now);
-            filter.Q.setValueAtTime(4.5, now);
-
-            gain.gain.setValueAtTime(0.55, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
-
-            osc.connect(filter);
-            filter.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            osc.start(now);
-            osc.stop(now + 0.95);
+            const now = audioCtx.currentTime, osc = audioCtx.createOscillator(), gain = audioCtx.createGain(), filter = audioCtx.createBiquadFilter();
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(55 + Math.random() * 35, now);
+            osc.frequency.linearRampToValueAtTime(115 + Math.random() * 45, now + 0.35); osc.frequency.exponentialRampToValueAtTime(35, now + 0.95);
+            filter.type = 'bandpass'; filter.frequency.setValueAtTime(320, now); filter.Q.setValueAtTime(4.5, now);
+            gain.gain.setValueAtTime(0.55, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+            osc.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 0.95);
         }
 
         function playHeartbeatSound(volume = 0.5, speedMult = 1.0) {
             if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(80 * speedMult, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(22, audioCtx.currentTime + (0.12 / speedMult));
-
-            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (0.12 / speedMult));
-
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + (0.12 / speedMult));
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+            osc.type = 'sine'; osc.frequency.setValueAtTime(80 * speedMult, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(22, audioCtx.currentTime + (0.12 / speedMult));
+            gain.gain.setValueAtTime(volume, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (0.12 / speedMult));
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + (0.12 / speedMult));
         }
 
         function playMonsterFootstep() {
             if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            const filter = audioCtx.createBiquadFilter();
-
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(80, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(15, audioCtx.currentTime + 0.3);
-
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(180, audioCtx.currentTime);
-
-            gain.gain.setValueAtTime(0.7, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-
-            osc.connect(filter);
-            filter.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.3);
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain(), filter = audioCtx.createBiquadFilter();
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(80, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(15, audioCtx.currentTime + 0.3);
+            filter.type = 'lowpass'; filter.frequency.setValueAtTime(180, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.7, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.3);
         }
 
         function triggerExtremeJumpScareAudio() {
             if (!audioCtx) return;
+            const subOsc = audioCtx.createOscillator(), subGain = audioCtx.createGain();
+            subOsc.type = 'sine'; subOsc.frequency.setValueAtTime(160, audioCtx.currentTime); subOsc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 1.4);
+            subGain.gain.setValueAtTime(1.0, audioCtx.currentTime); subGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.4);
+            subOsc.connect(subGain); subGain.connect(audioCtx.destination); subOsc.start(); subOsc.stop(audioCtx.currentTime + 1.4);
 
-            const subOsc = audioCtx.createOscillator();
-            const subGain = audioCtx.createGain();
-            subOsc.type = 'sine';
-            subOsc.frequency.setValueAtTime(160, audioCtx.currentTime);
-            subOsc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 1.4);
-            subGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-            subGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.4);
-            subOsc.connect(subGain);
-            subGain.connect(audioCtx.destination);
-            subOsc.start();
-            subOsc.stop(audioCtx.currentTime + 1.4);
-
-            const osc1 = audioCtx.createOscillator();
-            const osc2 = audioCtx.createOscillator();
-            const noiseBuffer = createNoiseBuffer();
-            const noiseSrc = audioCtx.createBufferSource();
-            noiseSrc.buffer = noiseBuffer;
-
-            const scareGain = audioCtx.createGain();
-
-            osc1.type = 'sawtooth';
-            osc2.type = 'square';
-
-            osc1.frequency.setValueAtTime(1400, audioCtx.currentTime);
-            osc1.frequency.linearRampToValueAtTime(150, audioCtx.currentTime + 1.4);
-
-            osc2.frequency.setValueAtTime(1450, audioCtx.currentTime);
-            osc2.frequency.linearRampToValueAtTime(130, audioCtx.currentTime + 1.4);
-
-            scareGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-            scareGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.4);
-
-            osc1.connect(scareGain);
-            osc2.connect(scareGain);
-            noiseSrc.connect(scareGain);
-            scareGain.connect(audioCtx.destination);
-
-            osc1.start();
-            osc2.start();
-            noiseSrc.start();
-
-            osc1.stop(audioCtx.currentTime + 1.4);
-            osc2.stop(audioCtx.currentTime + 1.4);
-            noiseSrc.stop(audioCtx.currentTime + 1.4);
+            const osc1 = audioCtx.createOscillator(), osc2 = audioCtx.createOscillator();
+            const noiseBuffer = createNoiseBuffer(), noiseSrc = audioCtx.createBufferSource(); noiseSrc.buffer = noiseBuffer;
+            const scareGain = audioCtx.createGain(); osc1.type = 'sawtooth'; osc2.type = 'square';
+            osc1.frequency.setValueAtTime(1400, audioCtx.currentTime); osc1.frequency.linearRampToValueAtTime(150, audioCtx.currentTime + 1.4);
+            osc2.frequency.setValueAtTime(1450, audioCtx.currentTime); osc2.frequency.linearRampToValueAtTime(130, audioCtx.currentTime + 1.4);
+            scareGain.gain.setValueAtTime(1.0, audioCtx.currentTime); scareGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.4);
+            osc1.connect(scareGain); osc2.connect(scareGain); noiseSrc.connect(scareGain); scareGain.connect(audioCtx.destination);
+            osc1.start(); osc2.start(); noiseSrc.start(); osc1.stop(audioCtx.currentTime + 1.4); osc2.stop(audioCtx.currentTime + 1.4); noiseSrc.stop(audioCtx.currentTime + 1.4);
         }
 
         function createNoiseBuffer() {
-            const bufferSize = audioCtx.sampleRate * 1.4;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
-            }
+            const bufferSize = audioCtx.sampleRate * 1.4, buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate), data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
             return buffer;
         }
 
         function onKey(e, pressed) {
             keys[e.code] = pressed;
 
-            if (pressed && e.code === 'KeyF') {
-                player.flashlightOn = !player.flashlightOn;
-                flashlight.visible = player.flashlightOn;
-                playClickSound();
+            if (pressed && e.code === 'KeyF' && gameStarted && !isPaused && !isModalOpen) {
+                if (player.battery > 0) {
+                    player.flashlightOn = !player.flashlightOn;
+                    flashlight.visible = player.flashlightOn;
+                    playClickSound();
+                } else {
+                    flashlight.visible = false;
+                }
             }
 
-            if (pressed && e.code === 'KeyE') {
+            if (pressed && e.code === 'KeyE' && gameStarted && !isPaused && !isModalOpen) {
                 checkInteraction();
             }
         }
 
         function playClickSound() {
             if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.05);
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+            osc.type = 'square'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.05);
         }
 
         function onMouseMove(e) {
-            if (!isPointerLocked || isJumpscaring) return;
+            if (!isPointerLocked || isJumpscaring || isPaused) return;
             player.rot.x -= e.movementY * CONFIG.sens;
             player.rot.y -= e.movementX * CONFIG.sens;
             player.rot.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, player.rot.x));
@@ -1217,50 +1154,91 @@
 
         function startGame() {
             document.getElementById('start-screen').style.display = 'none';
+            gameStarted = true;
             document.body.requestPointerLock();
             initAudio();
             animate();
         }
 
+        function pauseGame() {
+            isPaused = true;
+            holdETime = 0;
+            document.getElementById('hold-progress-container').style.display = 'none';
+            document.getElementById('pause-screen').style.display = 'flex';
+        }
+
+        function resumeGame() {
+            isPaused = false;
+            document.getElementById('pause-screen').style.display = 'none';
+            document.body.requestPointerLock();
+        }
+
         document.addEventListener('pointerlockchange', () => {
             isPointerLocked = (document.pointerLockElement === document.body);
+            if (!isPointerLocked && gameStarted && !isGameOver && !isModalOpen && !isJumpscaring) {
+                pauseGame();
+            }
         });
 
         function checkInteraction() {
+            if (activeBatteryIndex !== -1) {
+                const b = batteries[activeBatteryIndex];
+                if (!b.collected) {
+                    b.collected = true; scene.remove(b.mesh);
+                    player.battery = 100; playBatteryPickupSound();
+                }
+                return;
+            }
+
             if (activeNoteIndex !== -1) {
                 const note = notes[activeNoteIndex];
                 if (!note.collected && player.logsCollected < 5) {
-                    note.collected = true;
-                    scene.remove(note.mesh);
+                    note.collected = true; scene.remove(note.mesh);
                     player.logsCollected++;
                     document.getElementById('log-count').innerText = `${player.logsCollected}/5`;
-
                     showNoteModal(LOG_DATA[note.index].title, LOG_DATA[note.index].text);
 
-                    if (player.logsCollected === 3) {
-                        triggerStalkerFlickerScare();
-                    } else if (player.logsCollected === 5) {
-                        spawnPuzzleElements();
-                    }
+                    if (player.logsCollected === 3) triggerStalkerFlickerScare();
+                    else if (player.logsCollected === 5) triggerPhase2();
                 }
+                return;
+            }
+
+            if (isNearSafeKey && !hasSafeKey) {
+                hasSafeKey = true; scene.remove(safeKeyMesh); playClickSound();
+                showNoteModal("RECOVERED SAFE KEY", "Found the brass equipment key. Use it to unlock the locker and retrieve the crowbar.");
+                document.getElementById('task-state').innerText = "2. UNLOCK LOCKBOX FOR CROWBAR";
+                return;
+            }
+
+            if (isNearLockbox && hasSafeKey && !hasCrowbar) {
+                hasCrowbar = true; playClickSound();
+                showNoteModal("ACQUIRED RED CROWBAR", "Heavy steel crowbar retrieved. Hold [E] at the exit door barrier for 10 seconds to break it.");
+                document.getElementById('task-state').innerText = "2. HOLD [E] ON BARRIER TO BREAK IT";
+                return;
+            }
+
+            if (isNearExitDoor && !barrierBroken && !hasCrowbar) {
+                playClickSound();
+                showNoteModal("BARRIER BLOCKED", "The side exit blast door is barricaded with wooden planks. You need a crowbar to pry them off.");
                 return;
             }
 
             if (isNearCodeClue && !codeFound) {
                 codeFound = true;
-                showNoteModal("RECOVERED CLIPBOARD NOTE", `6-DIGIT VAULT ACCESS CODE:\n\n[ ${secretCode} ]\n\nNavigate across the sub-level to the north safe and input this code.`);
-                document.getElementById('task-state').innerText = "CROSS SECTOR TO VAULT SAFE";
-                document.getElementById('task-state').style.color = "#00ffcc";
+                showNoteModal("RECOVERED AUTHORIZATION CLIPBOARD", `6-DIGIT HEAVY VAULT CODE:\n\n[ ${secretCode} ]\n\nCross the lower level to the North sector safe and enter this code.`);
+                document.getElementById('task-state').innerText = "3. INPUT 6-DIGIT CODE INTO VAULT SAFE";
                 return;
             }
 
-            if (isNearSafe && !safeUnlocked) {
+            if (isNearHeavySafe && !safeUnlocked) {
                 openSafeModal();
                 return;
             }
         }
 
         function showNoteModal(title, text) {
+            isModalOpen = true;
             document.exitPointerLock();
             document.getElementById('note-title').innerText = title;
             document.getElementById('note-body').innerText = text;
@@ -1269,10 +1247,12 @@
 
         function closeNoteModal() {
             document.getElementById('note-modal').style.display = 'none';
+            isModalOpen = false;
             document.body.requestPointerLock();
         }
 
         function openSafeModal() {
+            isModalOpen = true;
             document.exitPointerLock();
             document.getElementById('safe-input').value = "";
             document.getElementById('safe-modal').style.display = 'block';
@@ -1281,28 +1261,25 @@
 
         function closeSafeModal() {
             document.getElementById('safe-modal').style.display = 'none';
+            isModalOpen = false;
             document.body.requestPointerLock();
         }
 
         function submitSafeCode() {
             const inputVal = document.getElementById('safe-input').value.trim();
             if (inputVal === secretCode) {
-                safeUnlocked = true;
-                hasKey = true;
+                safeUnlocked = true; hasExitKey = true;
                 closeSafeModal();
 
-                document.getElementById('task-state').innerText = "RUN ALL THE WAY TO EAST BLAST DOOR";
-                document.getElementById('task-state').style.color = "#00ff44";
+                document.getElementById('task-state').innerText = "RUN TO SIDE BLAST DOOR TO ESCAPE!";
+                document.getElementById('task-state').style.color = "#ff0000";
 
                 const backward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rot.y);
                 const spawnPos = player.pos.clone().add(backward.multiplyScalar(7.5));
-                spawnPos.y = 0;
-                stalkerGroup.position.copy(spawnPos);
-                stalkerActive = true;
+                spawnPos.y = 0; stalkerGroup.position.copy(spawnPos); stalkerActive = true;
 
                 triggerExtremeJumpScareAudio();
-
-                document.getElementById('prompt').innerText = "SAFE UNLOCKED! RUN ACROSS LEVEL 2 TO THE EAST EXIT!";
+                document.getElementById('prompt').innerText = "VAULT UNLOCKED! RUN FOR THE SIDE EXIT DOOR!";
                 document.getElementById('prompt').style.display = 'block';
                 document.getElementById('prompt').style.color = '#ff3333';
             } else {
@@ -1314,23 +1291,19 @@
 
         function triggerStalkerFlickerScare() {
             const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rot.y);
-            const scarePos = player.pos.clone().add(forward.multiplyScalar(1.5));
-            scarePos.y = 0;
+            const scarePos = player.pos.clone().add(forward.multiplyScalar(1.5)); scarePos.y = 0;
             
-            stalkerGroup.position.copy(scarePos);
-            stalkerGroup.rotation.set(0, player.rot.y + Math.PI, 0);
+            stalkerGroup.position.copy(scarePos); stalkerGroup.rotation.set(0, player.rot.y + Math.PI, 0);
 
             triggerExtremeJumpScareAudio();
-            const flash = document.getElementById('screen-flash');
-            flash.style.opacity = '0.7';
+            const flash = document.getElementById('screen-flash'); flash.style.opacity = '0.7';
 
             let flickers = 0;
             const flickerInterval = setInterval(() => {
-                flashlight.visible = !flashlight.visible;
-                flickers++;
+                flashlight.visible = !flashlight.visible; flickers++;
                 if (flickers >= 2) {
                     clearInterval(flickerInterval);
-                    flashlight.visible = player.flashlightOn;
+                    flashlight.visible = player.flashlightOn && player.battery > 0;
                     flash.style.opacity = '0';
                     stalkerGroup.position.set(-100, 0, -100);
                 }
@@ -1346,8 +1319,7 @@
             triggerExtremeJumpScareAudio();
 
             const flash = document.getElementById('screen-flash');
-            flash.style.background = '#aa0000';
-            flash.style.opacity = '0.9';
+            flash.style.background = '#aa0000'; flash.style.opacity = '0.9';
 
             const startTime = clock.getElapsedTime();
 
@@ -1357,17 +1329,14 @@
                 if (elapsed < 1.6) {
                     camera.updateMatrixWorld();
                     const cameraDir = new THREE.Vector3(0, -0.4, -0.65).applyMatrix4(camera.matrixWorld);
-                    stalkerGroup.position.copy(cameraDir);
-                    stalkerGroup.lookAt(camera.position);
+                    stalkerGroup.position.copy(cameraDir); stalkerGroup.lookAt(camera.position);
 
                     if (stalkerHeadGroup) {
                         stalkerHeadGroup.rotation.z = (Math.random() - 0.5) * 0.8;
                         stalkerHeadGroup.rotation.x = (Math.random() - 0.5) * 0.8;
                     }
 
-                    camera.position.x += (Math.random() - 0.5) * 0.45;
-                    camera.position.y += (Math.random() - 0.5) * 0.45;
-
+                    camera.position.x += (Math.random() - 0.5) * 0.45; camera.position.y += (Math.random() - 0.5) * 0.45;
                     flash.style.opacity = (Math.random() > 0.2) ? '0.95' : '0.2';
 
                     requestAnimationFrame(jumpscareLoop);
@@ -1380,6 +1349,7 @@
         }
 
         function triggerGameOver(success) {
+            isGameOver = true;
             document.exitPointerLock();
             if (chaseGain && audioCtx) chaseGain.gain.setValueAtTime(0, audioCtx.currentTime);
 
@@ -1388,12 +1358,10 @@
             const desc = document.getElementById('game-over-desc');
 
             if (success) {
-                title.innerText = "LEVEL 2 ESCAPED";
-                title.style.color = "#4caf50";
-                desc.innerText = "You survived Sub-Level 2 and unlocked the deep sector blast doors.";
+                title.innerText = "LEVEL 2 ESCAPED"; title.style.color = "#4caf50";
+                desc.innerText = "You survived Sub-Level 2 and escaped through the blast doors.";
             } else {
-                title.innerText = "SIGNAL TERMINATED";
-                title.style.color = "#ff0000";
+                title.innerText = "SIGNAL TERMINATED"; title.style.color = "#ff0000";
                 desc.innerText = "Subject overtaken in Level 2 corridors. Life signs terminated.";
             }
             screen.style.display = 'flex';
@@ -1414,79 +1382,80 @@
                 }
             }
 
-            minimapCtx.fillStyle = hasKey ? '#00ff44' : '#551111';
-            minimapCtx.fillRect(13 * tileSize, 13 * tileSize, tileSize, tileSize);
+            minimapCtx.fillStyle = hasExitKey ? '#00ff44' : '#551111';
+            minimapCtx.fillRect(13 * tileSize, 12 * tileSize, tileSize, tileSize);
 
             const px = (player.pos.x / (CONFIG.mapSize * CONFIG.tileSize)) * 140;
             const pz = (player.pos.z / (CONFIG.mapSize * CONFIG.tileSize)) * 140;
 
-            minimapCtx.strokeStyle = '#00ffcc';
-            minimapCtx.lineWidth = 2;
-            minimapCtx.beginPath();
-            minimapCtx.moveTo(px, pz);
-            minimapCtx.lineTo(
-                px - Math.sin(player.rot.y) * 9,
-                pz - Math.cos(player.rot.y) * 9
-            );
+            minimapCtx.strokeStyle = '#00ffcc'; minimapCtx.lineWidth = 2;
+            minimapCtx.beginPath(); minimapCtx.moveTo(px, pz);
+            minimapCtx.lineTo(px - Math.sin(player.rot.y) * 9, pz - Math.cos(player.rot.y) * 9);
             minimapCtx.stroke();
 
-            minimapCtx.fillStyle = '#00ffcc';
-            minimapCtx.beginPath();
-            minimapCtx.arc(px, pz, 3, 0, Math.PI * 2);
-            minimapCtx.fill();
+            minimapCtx.fillStyle = '#00ffcc'; minimapCtx.beginPath(); minimapCtx.arc(px, pz, 3, 0, Math.PI * 2); minimapCtx.fill();
         }
 
         function updateProximityMeter() {
             const bar = document.getElementById('proximity-bar');
             let targetPos = null;
 
-            if (player.logsCollected < 5) {
+            if (puzzlePhase === 1) {
                 const uncollectedNotes = notes.filter(n => !n.collected);
                 if (uncollectedNotes.length > 0) {
                     let minDistance = Infinity;
                     for (let note of uncollectedNotes) {
                         const dist = player.pos.distanceTo(note.pos);
-                        if (dist < minDistance) {
-                            minDistance = dist;
-                            targetPos = note.pos;
-                        }
+                        if (dist < minDistance) { minDistance = dist; targetPos = note.pos; }
                     }
                 }
-            } else if (puzzleSpawned && !codeFound) {
-                targetPos = codePos;
-            } else if (codeFound && !hasKey) {
-                targetPos = safePos;
-            } else if (hasKey) {
-                targetPos = new THREE.Vector3(13 * CONFIG.tileSize + 2, 1, 13 * CONFIG.tileSize + 2);
+            } else if (puzzlePhase === 2) {
+                if (!hasSafeKey) targetPos = safeKeyPos;
+                else if (!hasCrowbar) targetPos = lockboxPos;
+                else if (!barrierBroken) targetPos = exitDoorPos;
+            } else if (puzzlePhase === 3) {
+                if (!codeFound) targetPos = codePos;
+                else if (!hasExitKey) targetPos = safePos;
+                else targetPos = exitDoorPos;
             }
 
-            if (!targetPos) {
-                bar.style.width = '0%';
-                return;
-            }
+            if (!targetPos) { bar.style.width = '0%'; return; }
 
             const dist = player.pos.distanceTo(targetPos);
-            const maxDetectRadius = 8;
-            let ratio = 1 - Math.min(dist / maxDetectRadius, 1);
-            ratio = Math.max(0, ratio);
+            let ratio = 1 - Math.min(dist / 8, 1); ratio = Math.max(0, ratio);
 
             bar.style.width = `${(ratio * 100).toFixed(0)}%`;
-
-            if (ratio > 0.75) {
-                bar.style.background = '#ff2222';
-            } else if (ratio > 0.4) {
-                bar.style.background = '#ffaa00';
-            } else {
-                bar.style.background = '#00ffcc';
-            }
+            if (ratio > 0.75) bar.style.background = '#ff2222';
+            else if (ratio > 0.4) bar.style.background = '#ffaa00';
+            else bar.style.background = '#00ffcc';
         }
 
         function updatePlayer(delta) {
-            if (!isPointerLocked || isJumpscaring) return;
+            if (!isPointerLocked || isJumpscaring || isPaused) return;
 
             const time = clock.getElapsedTime();
 
-            player.isSprinting = keys['ShiftLeft'] && player.stamina > 0;
+            // FLASHLIGHT BATTERY DRAIN MECHANIC
+            if (player.flashlightOn && player.battery > 0) {
+                player.battery = Math.max(0, player.battery - delta * 2.0);
+                if (player.battery <= 0) {
+                    player.flashlightOn = false; flashlight.visible = false;
+                }
+            }
+            const battBar = document.getElementById('battery-bar');
+            battBar.style.width = `${player.battery}%`;
+            if (player.battery < 20) battBar.style.background = '#ff2222';
+            else if (player.battery < 50) battBar.style.background = '#ffaa00';
+            else battBar.style.background = '#00ffcc';
+
+            // STAMINA LOCKOUT MECHANIC
+            if (player.stamina <= 0) {
+                player.isExhausted = true;
+            } else if (player.stamina >= 100) {
+                player.isExhausted = false;
+            }
+
+            player.isSprinting = keys['ShiftLeft'] && !player.isExhausted && player.stamina > 0;
             const speed = player.isSprinting ? CONFIG.sprintSpeed : CONFIG.moveSpeed;
 
             if (player.isSprinting) {
@@ -1494,7 +1463,14 @@
             } else {
                 player.stamina = Math.min(100, player.stamina + delta * 12);
             }
-            document.getElementById('stamina-bar').style.width = `${player.stamina}%`;
+
+            const staminaBar = document.getElementById('stamina-bar');
+            staminaBar.style.width = `${player.stamina}%`;
+            if (player.isExhausted) {
+                staminaBar.style.background = '#444444';
+            } else {
+                staminaBar.style.background = '#880000';
+            }
 
             const moveVector = new THREE.Vector3();
             if (keys['KeyW']) moveVector.z -= 1;
@@ -1514,39 +1490,30 @@
 
             let collided = false;
             for (let collider of colliders) {
-                if (playerBox.intersectsBox(collider)) {
-                    collided = true;
-                    break;
-                }
+                if (playerBox.intersectsBox(collider)) { collided = true; break; }
             }
 
-            if (!collided) {
-                player.pos.copy(nextPos);
-            }
+            if (!collided) player.pos.copy(nextPos);
 
             let bob = 0;
-            if (moveVector.lengthSq() > 0) {
-                bob = Math.sin(time * (player.isSprinting ? 14 : 9)) * 0.05;
-            }
+            if (moveVector.lengthSq() > 0) bob = Math.sin(time * (player.isSprinting ? 14 : 9)) * 0.05;
 
             camera.position.set(player.pos.x, player.pos.y + bob, player.pos.z);
-            camera.rotation.order = 'YXZ';
-            camera.rotation.y = player.rot.y;
-            camera.rotation.x = player.rot.x;
+            camera.rotation.order = 'YXZ'; camera.rotation.y = player.rot.y; camera.rotation.x = player.rot.x;
 
-            const exitTilePos = new THREE.Vector3(13 * CONFIG.tileSize + 2, 1, 13 * CONFIG.tileSize + 2);
-            if (player.pos.distanceTo(exitTilePos) < 2.0) {
-                if (hasKey) {
+            // EXIT CHECK
+            if (player.pos.distanceTo(exitDoorPos) < 2.8) {
+                if (hasExitKey && barrierBroken) {
                     triggerGameOver(true);
-                } else if (player.logsCollected === 5) {
-                    document.getElementById('prompt').innerText = "DOOR LOCKED. UNLOCK THE SAFE FOR THE KEY.";
+                } else if (puzzlePhase === 3 && codeFound && barrierBroken) {
+                    document.getElementById('prompt').innerText = "BLAST DOOR LOCKED. UNLOCK VAULT SAFE FOR KEYCARD.";
                     document.getElementById('prompt').style.display = 'block';
                 }
             }
 
+            // MONSTER AI & CHASE MECHANICS
             if (stalkerActive && !isJumpscaring) {
                 const dist2D = Math.hypot(stalkerGroup.position.x - player.pos.x, stalkerGroup.position.z - player.pos.z);
-                
                 const proximityRatio = Math.max(0, 1 - dist2D / 15);
                 document.getElementById('vignette').style.boxShadow = `inset 0 0 ${150 + proximityRatio * 80}px rgba(${Math.floor(proximityRatio * 200)},0,0,0.98)`;
 
@@ -1558,74 +1525,44 @@
 
                 if (time - lastHeartbeat > (0.48 - proximityRatio * 0.28)) {
                     playHeartbeatSound(0.4 + proximityRatio * 0.6, 1.25 + proximityRatio * 1.1);
-                    lastHeartbeat = time;
-                    currentShake = 0.07 + proximityRatio * 0.08;
+                    lastHeartbeat = time; currentShake = 0.07 + proximityRatio * 0.08;
                 }
 
                 if (time - lastZombieGrowlTime > 2.2 + Math.random() * 2.0) {
-                    playZombieGrowl();
-                    lastZombieGrowlTime = time;
+                    playZombieGrowl(); lastZombieGrowlTime = time;
                 }
 
                 if (dist2D > 1.15) {
-                    const mR = Math.floor(stalkerGroup.position.z / CONFIG.tileSize);
-                    const mC = Math.floor(stalkerGroup.position.x / CONFIG.tileSize);
-                    const pR = Math.floor(player.pos.z / CONFIG.tileSize);
-                    const pC = Math.floor(player.pos.x / CONFIG.tileSize);
+                    const mR = Math.floor(stalkerGroup.position.z / CONFIG.tileSize), mC = Math.floor(stalkerGroup.position.x / CONFIG.tileSize);
+                    const pR = Math.floor(player.pos.z / CONFIG.tileSize), pC = Math.floor(player.pos.x / CONFIG.tileSize);
 
                     let targetVec = player.pos.clone();
 
                     if (mR !== pR || mC !== pC) {
                         const nextTile = getMonsterNextTile(mR, mC, pR, pC);
-                        if (nextTile) {
-                            targetVec.set(
-                                nextTile[1] * CONFIG.tileSize + CONFIG.tileSize / 2,
-                                0,
-                                nextTile[0] * CONFIG.tileSize + CONFIG.tileSize / 2
-                            );
-                        }
+                        if (nextTile) targetVec.set(nextTile[1] * CONFIG.tileSize + CONFIG.tileSize / 2, 0, nextTile[0] * CONFIG.tileSize + CONFIG.tileSize / 2);
                     }
 
-                    const dx = targetVec.x - stalkerGroup.position.x;
-                    const dz = targetVec.z - stalkerGroup.position.z;
-                    const dist = Math.hypot(dx, dz);
+                    const dx = targetVec.x - stalkerGroup.position.x, dz = targetVec.z - stalkerGroup.position.z, dist = Math.hypot(dx, dz);
 
                     if (dist > 0.05) {
-                        const angle = Math.atan2(dx, dz);
-                        stalkerGroup.rotation.set(0, angle, 0);
-
+                        stalkerGroup.rotation.set(0, Math.atan2(dx, dz), 0);
                         stalkerGroup.position.x += (dx / dist) * delta * CONFIG.stalkerSpeed;
                         stalkerGroup.position.z += (dz / dist) * delta * CONFIG.stalkerSpeed;
                     }
                     
-                    const walkCadence = 6.0;
-                    const walkCycle = Math.sin(time * walkCadence);
-
+                    const walkCadence = 6.0, walkCycle = Math.sin(time * walkCadence);
                     stalkerGroup.position.y = Math.abs(Math.sin(time * walkCadence)) * 0.04;
 
-                    if (stalkerLeftLeg && stalkerRightLeg) {
-                        stalkerLeftLeg.rotation.x = walkCycle * 0.35;
-                        stalkerRightLeg.rotation.x = -walkCycle * 0.35;
-                    }
-
+                    if (stalkerLeftLeg && stalkerRightLeg) { stalkerLeftLeg.rotation.x = walkCycle * 0.35; stalkerRightLeg.rotation.x = -walkCycle * 0.35; }
                     if (stalkerLeftArm && stalkerRightArm) {
-                        stalkerLeftArm.rotation.x = -walkCycle * 0.28;
-                        stalkerRightArm.rotation.x = walkCycle * 0.28;
-                        stalkerLeftArm.rotation.z = Math.cos(time * walkCadence) * 0.03;
-                        stalkerRightArm.rotation.z = -Math.cos(time * walkCadence) * 0.03;
+                        stalkerLeftArm.rotation.x = -walkCycle * 0.28; stalkerRightArm.rotation.x = walkCycle * 0.28;
+                        stalkerLeftArm.rotation.z = Math.cos(time * walkCadence) * 0.03; stalkerRightArm.rotation.z = -Math.cos(time * walkCadence) * 0.03;
                     }
-
-                    if (stalkerHeadGroup) {
-                        stalkerHeadGroup.rotation.y = Math.sin(time * (walkCadence * 0.5)) * 0.06;
-                        stalkerHeadGroup.rotation.z = Math.cos(time * walkCadence) * 0.03;
-                    }
-
+                    if (stalkerHeadGroup) { stalkerHeadGroup.rotation.y = Math.sin(time * (walkCadence * 0.5)) * 0.06; stalkerHeadGroup.rotation.z = Math.cos(time * walkCadence) * 0.03; }
                     if (heartLight) heartLight.intensity = 1.8 + Math.sin(time * 16) * 1.2;
 
-                    if (time - lastFootstepTime > 0.52) {
-                        playMonsterFootstep();
-                        lastFootstepTime = time;
-                    }
+                    if (time - lastFootstepTime > 0.52) { playMonsterFootstep(); lastFootstepTime = time; }
                 } else {
                     triggerDeathJumpscare();
                 }
@@ -1637,43 +1574,77 @@
                 currentShake = Math.max(0, currentShake - delta * 0.45);
             }
 
-            activeNoteIndex = -1;
-            isNearCodeClue = false;
-            isNearSafe = false;
+            // PROXIMITY & INTERACTION PROMPTS
+            activeNoteIndex = -1; activeBatteryIndex = -1;
+            isNearSafeKey = false; isNearLockbox = false; isNearExitDoor = false; isNearCodeClue = false; isNearHeavySafe = false;
+
+            for (let b of batteries) {
+                if (!b.collected && player.pos.distanceTo(b.pos) < 2.0) { activeBatteryIndex = batteries.indexOf(b); break; }
+            }
 
             for (let note of notes) {
-                if (!note.collected && player.pos.distanceTo(note.pos) < 2.5) {
-                    activeNoteIndex = notes.indexOf(note);
-                    break;
-                }
+                if (!note.collected && player.pos.distanceTo(note.pos) < 2.5) { activeNoteIndex = notes.indexOf(note); break; }
             }
 
-            if (puzzleSpawned && !codeFound && player.pos.distanceTo(codePos) < 2.5) {
-                isNearCodeClue = true;
-            }
+            if (!barrierBroken && player.pos.distanceTo(exitDoorPos) < 2.8) isNearExitDoor = true;
 
-            if (puzzleSpawned && !safeUnlocked && player.pos.distanceTo(safePos) < 2.5) {
-                isNearSafe = true;
+            if (puzzlePhase === 2) {
+                if (!hasSafeKey && player.pos.distanceTo(safeKeyPos) < 2.2) isNearSafeKey = true;
+                if (hasSafeKey && !hasCrowbar && player.pos.distanceTo(lockboxPos) < 2.2) isNearLockbox = true;
+            } else if (puzzlePhase === 3) {
+                if (!codeFound && player.pos.distanceTo(codePos) < 2.5) isNearCodeClue = true;
+                if (!safeUnlocked && player.pos.distanceTo(safePos) < 2.5) isNearHeavySafe = true;
             }
 
             const crosshair = document.getElementById('crosshair');
             const prompt = document.getElementById('prompt');
+            const holdContainer = document.getElementById('hold-progress-container');
+            const holdCircle = document.getElementById('hold-progress-circle');
 
-            if (activeNoteIndex !== -1) {
+            if (isNearExitDoor && !barrierBroken && hasCrowbar) {
                 crosshair.classList.add('interact');
-                prompt.innerText = "[E] READ LOG";
-                prompt.style.display = 'block';
-            } else if (isNearCodeClue) {
-                crosshair.classList.add('interact');
-                prompt.innerText = "[E] READ 6-DIGIT CODE CLIPBOARD";
-                prompt.style.display = 'block';
-            } else if (isNearSafe) {
-                crosshair.classList.add('interact');
-                prompt.innerText = "[E] OPEN HEAVY VAULT SAFE";
-                prompt.style.display = 'block';
+                prompt.innerText = "[HOLD E] BREAK WOODEN BARRIER"; prompt.style.display = 'block';
+
+                if (keys['KeyE']) {
+                    holdETime += delta; holdContainer.style.display = 'block';
+                    const ratio = Math.min(1.0, holdETime / REQUIRED_HOLD_TIME);
+                    holdCircle.style.strokeDashoffset = (201 * (1 - ratio)).toFixed(2);
+
+                    if (holdETime >= REQUIRED_HOLD_TIME) {
+                        holdETime = 0; holdContainer.style.display = 'none'; barrierBroken = true;
+                        playWoodBreakSound(); currentShake = 0.25;
+
+                        const idx = colliders.indexOf(woodenBarrierGroup.userData.collider);
+                        if (idx !== -1) colliders.splice(idx, 1);
+                        scene.remove(woodenBarrierGroup);
+
+                        triggerPhase3();
+                        showNoteModal("BARRIER SMASHED", "The wooden barrier shattered! Search the inner sector for the 6-digit authorization note.");
+                    }
+                } else {
+                    holdETime = 0; holdContainer.style.display = 'none';
+                }
             } else {
-                crosshair.classList.remove('interact');
-                if (player.logsCollected < 5) prompt.style.display = 'none';
+                holdETime = 0; holdContainer.style.display = 'none';
+
+                if (activeBatteryIndex !== -1) {
+                    crosshair.classList.add('interact'); prompt.innerText = "[E] PICK UP FLASHLIGHT BATTERY"; prompt.style.display = 'block';
+                } else if (activeNoteIndex !== -1) {
+                    crosshair.classList.add('interact'); prompt.innerText = "[E] READ LOG"; prompt.style.display = 'block';
+                } else if (isNearSafeKey) {
+                    crosshair.classList.add('interact'); prompt.innerText = "[E] PICK UP SAFE KEY"; prompt.style.display = 'block';
+                } else if (isNearLockbox) {
+                    crosshair.classList.add('interact'); prompt.innerText = "[E] UNLOCK LOCKBOX FOR CROWBAR"; prompt.style.display = 'block';
+                } else if (isNearExitDoor && !barrierBroken) {
+                    crosshair.classList.add('interact'); prompt.innerText = "[E] EXAMINE WOODEN BARRIER"; prompt.style.display = 'block';
+                } else if (isNearCodeClue) {
+                    crosshair.classList.add('interact'); prompt.innerText = "[E] READ 6-DIGIT CODE CLIPBOARD"; prompt.style.display = 'block';
+                } else if (isNearHeavySafe) {
+                    crosshair.classList.add('interact'); prompt.innerText = "[E] OPEN HEAVY VAULT SAFE"; prompt.style.display = 'block';
+                } else {
+                    crosshair.classList.remove('interact');
+                    if (player.logsCollected < 5 && puzzlePhase === 1) prompt.style.display = 'none';
+                }
             }
 
             drawMinimap();
@@ -1690,7 +1661,9 @@
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
 
-            updatePlayer(delta);
+            if (!isPaused) {
+                updatePlayer(delta);
+            }
             renderer.render(scene, camera);
         }
 

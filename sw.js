@@ -5,6 +5,7 @@ const ASSETS_TO_CACHE = [
   './index.html',
   './level1.html',
   './level2.html',
+  './level3.html',
   './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
   './icon-192.png',

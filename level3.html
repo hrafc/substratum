@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#8b0000">
+    <title>SUBSTRATUM: PROTOCOL 9 - LEVEL 3</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            color: #fff;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #glitch-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15), rgba(0,0,0,0.15) 1px, transparent 1px, transparent 2px);
+            pointer-events: none;
+            z-index: 6;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 25px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 6px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s ease;
+        }
+        #crosshair.interact {
+            transform: translate(-50%, -50%) scale(2.5);
+            background: rgba(255, 30, 30, 0.8);
+        }
+        #hud {
+            font-size: 13px;
+            letter-spacing: 2px;
+            color: #aaa;
+            text-shadow: 0 0 5px rgba(0,0,0,0.8);
+        }
+        .stat-group {
+            margin-bottom: 10px;
+        }
+        .bar-container {
+            width: 160px;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            margin-top: 4px;
+            border-radius: 2px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        #stamina-bar {
+            width: 100%;
+            height: 100%;
+            background: #880000;
+            transition: width 0.1s linear;
+        }
+        #battery-bar {
+            width: 100%;
+            height: 100%;
+            background: #00ff66;
+            transition: width 0.1s linear, background-color 0.2s ease;
+        }
+        #proximity-bar {
+            width: 0%;
+            height: 100%;
+            background: #00ffcc;
+            transition: width 0.1s ease, background-color 0.2s ease;
+        }
+        #inventory-panel {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #ffaa00;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+        #minimap {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 140px;
+            height: 140px;
+            border: 2px solid #333;
+            background: rgba(4, 4, 6, 0.92);
+            border-radius: 4px;
+            z-index: 15;
+            box-shadow: 0 0 12px rgba(0,0,0,0.95);
+        }
+        #screen-flash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: red;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 20;
+            transition: opacity 0.05s ease;
+        }
+        #vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: inset 0 0 120px rgba(0,0,0,0.85);
+            pointer-events: none;
+            z-index: 5;
+        }
+        #locker-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-top: 25px solid rgba(15, 18, 24, 0.92);
+            border-bottom: 25px solid rgba(15, 18, 24, 0.92);
+            border-left: 40px solid rgba(15, 18, 24, 0.92);
+            border-right: 40px solid rgba(15, 18, 24, 0.92);
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8);
+            display: none;
+            pointer-events: none;
+            z-index: 8;
+        }
+        #start-screen, #game-over-screen, #pause-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(3, 3, 3, 0.94);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            pointer-events: auto;
+            text-align: center;
+            padding: 20px;
+        }
+        #game-over-screen, #pause-screen {
+            display: none;
+        }
+        #pause-screen {
+            background: rgba(5, 6, 8, 0.96);
+        }
+        h1 {
+            font-size: 3rem;
+            letter-spacing: 6px;
+            color: #8b0000;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(139,0,0,0.5);
+        }
+        p.sub {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+        .btn {
+            background: transparent;
+            border: 1px solid #8b0000;
+            color: #ccc;
+            padding: 12px 30px;
+            font-size: 1rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            margin: 8px 0;
+            min-width: 240px;
+        }
+        .btn:hover {
+            background: #8b0000;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(139,0,0,0.8);
+        }
+        #prompt {
+            position: absolute;
+            bottom: 18%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.85);
+            display: none;
+            text-align: center;
+            background: rgba(0,0,0,0.7);
+            padding: 8px 18px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        .settings-panel {
+            background: rgba(18, 22, 28, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            padding: 20px 30px;
+            margin: 20px 0;
+            width: 100%;
+            max-width: 420px;
+            text-align: left;
+        }
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            color: #bbb;
+        }
+        .settings-row label {
+            cursor: pointer;
+        }
+        .settings-row input[type="range"] {
+            width: 140px;
+            accent-color: #8b0000;
+            cursor: pointer;
+        }
+        .settings-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #8b0000;
+            cursor: pointer;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="vignette"></div>
+    <div id="locker-overlay"></div>
+    <div id="glitch-overlay"></div>
+    <div id="screen-flash"></div>
+
+    <canvas id="minimap" width="140" height="140"></canvas>
+
+    <div id="ui-overlay">
+        <div id="hud">
+            <div class="stat-group">
+                FUSES INSTALLED: <span id="fuse-count" style="color:#00ffcc;">0/6</span>
+            </div>
+            <div class="stat-group" id="task-status" style="color: #ffaa00;">
+                TASK: <span id="task-state">FIND FUSES (MAX 1 IN INVENTORY)</span>
+            </div>
+            <div class="stat-group">
+                FLASHLIGHT BATTERY
+                <div class="bar-container">
+                    <div id="battery-bar"></div>
+                </div>
+            </div>
+            <div class="stat-group">
+                STAMINA
+                <div class="bar-container">
+                    <div id="stamina-bar"></div>
+                </div>
+            </div>
+            <div class="stat-group">
+                MONSTER PROXIMITY
+                <div class="bar-container">
+                    <div id="proximity-bar"></div>
+                </div>
+            </div>
+            <div id="inventory-panel">
+                CARRIED FUSE: <span id="inventory-status" style="color:#ff3333;">NONE (0/1)</span>
+            </div>
+        </div>
+        <div id="prompt">[E] INTERACT</div>
+        <div id="crosshair"></div>
+    </div>
+
+    <div id="start-screen">
+        <h1>SUBSTRATUM: LEVEL 3</h1>
+        <p class="sub">PROTOCOL 9 • DEEP FUSE SECTOR</p>
+        <p style="color: #888; max-width: 520px; margin-bottom: 25px; line-height: 1.6; font-size: 0.85rem;">
+            WARNING: Patrolling anomaly entity moving throughout sector.<br><br>
+            SURVIVAL PROTOCOLS:<br>
+            • Monster patrols randomly until it gains direct line-of-sight.<br>
+            • Break line-of-sight around corners before hiding in wall lockers <kbd>[E]</kbd>.<br>
+            • Flashlight <kbd>[F]</kbd> works inside lockers.<br>
+            • Locate 6 fuses across the map and insert them into the wall Fuse Box.<br>
+            • <strong>Inventory Capacity: 1 Fuse max.</strong><br><br>
+            Controls: [W A S D] Move | [SHIFT] Sprint | [F] Flashlight | [E] Hide | [ESC] Pause
+        </p>
+        <button class="btn" id="start-btn">ENTER SUB-LEVEL 3</button>
+    </div>
+
+    <div id="pause-screen">
+        <h1 style="color: #ccc; font-size: 2.2rem; margin-bottom: 4px;">SYSTEM PAUSED</h1>
+        <p class="sub" style="margin-bottom: 15px;">PROTOCOL 9 • STANDBY MODE</p>
+        
+        <button class="btn" id="resume-btn">1. RESUME GAME</button>
+        
+        <div class="settings-panel">
+            <div style="font-size: 0.9rem; color: #ffaa00; margin-bottom: 12px; font-weight: bold; letter-spacing: 1px;">GRAPHICS & PERFORMANCE</div>
+            <div class="settings-row">
+                <label for="render-scale">Render Resolution:</label>
+                <input type="range" id="render-scale" min="0.5" max="1.0" step="0.1" value="1.0">
+            </div>
+            <div class="settings-row">
+                <label for="shadow-toggle">Dynamic Shadows:</label>
+                <input type="checkbox" id="shadow-toggle" checked>
+            </div>
+            <div class="settings-row">
+                <label for="fog-toggle">Atmospheric Fog:</label>
+                <input type="checkbox" id="fog-toggle" checked>
+            </div>
+        </div>
+
+        <button class="btn" id="quit-btn" style="border-color: #661111; color: #aa5555;">2. QUIT GAME</button>
+    </div>
+
+    <div id="game-over-screen">
+        <h1 style="color: #ff0000;" id="game-over-title">SIGNAL TERMINATED</h1>
+        <p class="sub" id="game-over-desc">Subject killed in Sub-Level 3.</p>
+        <button class="btn" id="restart-btn">RETRY LEVEL 3</button>
+    </div>
+
+    <script>
+        const CONFIG = {
+            mapSize: 16,
+            tileSize: 4,
+            wallHeight: 3.5,
+            moveSpeed: 3.0,
+            sprintSpeed: 5.2,
+            sens: 0.002,
+            stalkerSpeed: 2.7
+        };
+
+        let scene, camera, renderer, clock;
+        let flashlight, flashlightTarget, ambientLight;
+        let minimapCtx;
+        
+        let player = {
+            pos: new THREE.Vector3(2, 1.2, 2),
+            rot: new THREE.Vector2(0, 0),
+            stamina: 100,
+            battery: 100,
+            isSprinting: false,
+            flashlightOn: true,
+            hasFuse: false,
+            fusesInstalled: 0,
+            isHiding: false,
+            currentLocker: null
+        };
+
+        let keys = {};
+        let isPointerLocked = false;
+        let isGamePaused = false;
+        let gameStarted = false;
+        
+        let audioCtx, chaseOsc, chaseGain, chaseFilter;
+        let colliders = [];
+        let wallMeshes = [];
+        let lockers = [];
+        let fuses = [];
+        let batteries = [];
+        let walkableTiles = [];
+
+        let fuseBoxPos = new THREE.Vector3();
+        let fuseBoxMesh = null;
+        let fuseSockets = [];
+        let powerRestored = false;
+
+        let exitDoorGroup = null;
+        let leftDoorLeaf = null;
+        let rightDoorLeaf = null;
+        let doorLight = null;
+
+        let stalkerGroup = null;
+        let stalkerHeadGroup = null;
+        let stalkerLeftArm = null;
+        let stalkerRightArm = null;
+        let stalkerLeftLeg = null;
+        let stalkerRightLeg = null;
+        let heartLight = null;
+        let stalkerActive = true;
+        let stalkerWalkCycle = 0;
+        
+        let monsterState = 'PATROL';
+        let patrolTargetVec = new THREE.Vector3();
+        let patrolTile = null;
+        let lastKnownPos = new THREE.Vector3();
+        let sawPlayerHide = false;
+        let investigateTimer = 0;
+
+        let lastFootstepTime = 0;
+        let lastHeartbeat = 0;
+        let isJumpscaring = false;
+
+        let activeLockerIndex = -1;
+        let activeFuseIndex = -1;
+        let activeBatteryIndex = -1;
+        let isNearFuseBox = false;
+
+        const MAZE_GRID = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,2,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+            [1,1,1,0,1,0,1,1,1,1,0,1,0,1,1,1],
+            [1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,1],
+            [1,0,1,1,1,0,1,0,0,1,0,1,1,1,0,1],
+            [1,0,1,0,0,0,0,0,0,1,0,1,0,1,0,1],
+            [1,0,1,0,1,1,1,1,0,1,0,1,0,1,0,1],
+            [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+            [1,1,1,0,1,0,1,1,1,1,0,1,1,1,0,1],
+            [1,0,0,0,1,0,0,0,0,1,0,0,0,1,0,1],
+            [1,0,1,0,1,1,1,0,1,1,1,1,0,1,0,1],
+            [1,0,1,0,0,0,1,0,0,0,0,1,0,0,0,1],
+            [1,0,1,1,1,0,1,1,1,0,1,1,0,1,1,1],
+            [1,0,0,0,1,0,0,0,1,0,0,0,0,0,3,1],
+            [1,1,1,0,0,0,1,0,0,0,1,1,1,1,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        function generateWallTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0a0b0e'; ctx.fillRect(0, 0, 512, 512);
+
+            const panelW = 128;
+            for (let p = 0; p < 4; p++) {
+                const px = p * panelW;
+                ctx.fillStyle = '#111318'; ctx.fillRect(px + 3, 0, panelW - 6, 512);
+                ctx.fillStyle = '#3a3d45';
+                for (let ry = 16; ry < 512; ry += 32) {
+                    ctx.beginPath(); ctx.arc(px + 8, ry, 2.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(px + panelW - 8, ry, 2.5, 0, Math.PI * 2); ctx.fill();
+                }
+            }
+            ctx.strokeStyle = '#030405'; ctx.lineWidth = 6;
+            for (let p = 0; p <= 4; p++) {
+                ctx.beginPath(); ctx.moveTo(p * panelW, 0); ctx.lineTo(p * panelW, 512); ctx.stroke();
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        function generateFloorTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#06070a'; ctx.fillRect(0, 0, 512, 512);
+            ctx.strokeStyle = '#181b22'; ctx.lineWidth = 1.5;
+            for (let x = 0; x < 512; x += 16) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 512, 512); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 512, 512); ctx.stroke();
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        function generateDemonSkinTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#1c1f24'; ctx.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 400; i++) {
+                ctx.strokeStyle = Math.random() > 0.6 ? '#660d0d' : '#0c0d0f';
+                ctx.lineWidth = Math.random() * 3 + 0.5;
+                ctx.beginPath(); ctx.moveTo(Math.random() * 256, Math.random() * 256); ctx.lineTo(Math.random() * 256, Math.random() * 256); ctx.stroke();
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function init() {
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x010102, 0.05);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            flashlight = new THREE.SpotLight(0xfffaed, 15.0, 36.0, Math.PI / 4.0, 0.45, 1.1);
+            flashlight.castShadow = true;
+            flashlight.shadow.mapSize.width = 1024; flashlight.shadow.mapSize.height = 1024;
+            flashlight.position.set(0, 0, 0);
+
+            flashlightTarget = new THREE.Object3D();
+            flashlightTarget.position.set(0, 0, -5);
+            camera.add(flashlightTarget);
+            flashlight.target = flashlightTarget;
+
+            camera.add(flashlight);
+            scene.add(camera);
+
+            ambientLight = new THREE.AmbientLight(0x222533, 0.65);
+            scene.add(ambientLight);
+
+            const minimapCanvas = document.getElementById('minimap');
+            minimapCtx = minimapCanvas.getContext('2d');
+
+            buildEnvironment();
+            spawnLockersInWalls();
+            spawnFuses();
+            spawnBatteries();
+            createWallMountedFuseBox();
+            create3DBlastExitDoor();
+            createMutatedAshMonster();
+
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', (e) => onKey(e, true));
+            document.addEventListener('keyup', (e) => onKey(e, false));
+            document.addEventListener('mousemove', onMouseMove);
+
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            document.getElementById('resume-btn').addEventListener('click', resumeGame);
+            document.getElementById('quit-btn').addEventListener('click', () => location.reload());
+            document.getElementById('restart-btn').addEventListener('click', () => location.reload());
+
+            // GRAPHICS SETTINGS LISTENERS
+            document.getElementById('render-scale').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                renderer.setPixelRatio(val);
+            });
+            document.getElementById('shadow-toggle').addEventListener('change', (e) => {
+                renderer.shadowMap.enabled = e.target.checked;
+            });
+            document.getElementById('fog-toggle').addEventListener('change', (e) => {
+                if (e.target.checked) scene.fog = new THREE.FogExp2(0x010102, 0.05);
+                else scene.fog = null;
+            });
+        }
+
+        function buildEnvironment() {
+            const wallTex = generateWallTexture(); wallTex.repeat.set(1, 1);
+            const floorTex = generateFloorTexture(); floorTex.repeat.set(16, 16);
+
+            const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85, metalness: 0.35 });
+            const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.70, metalness: 0.30 });
+            const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x08080a, roughness: 0.95 });
+
+            const floorGeo = new THREE.PlaneGeometry(CONFIG.mapSize * CONFIG.tileSize, CONFIG.mapSize * CONFIG.tileSize);
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.set((CONFIG.mapSize * CONFIG.tileSize)/2, 0, (CONFIG.mapSize * CONFIG.tileSize)/2);
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            const ceiling = new THREE.Mesh(floorGeo, ceilingMat);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.set((CONFIG.mapSize * CONFIG.tileSize)/2, CONFIG.wallHeight, (CONFIG.mapSize * CONFIG.tileSize)/2);
+            scene.add(ceiling);
+
+            const wallGeo = new THREE.BoxGeometry(CONFIG.tileSize, CONFIG.wallHeight, CONFIG.tileSize);
+
+            for (let r = 0; r < CONFIG.mapSize; r++) {
+                for (let c = 0; c < CONFIG.mapSize; c++) {
+                    const cell = MAZE_GRID[r][c];
+                    const x = c * CONFIG.tileSize + CONFIG.tileSize / 2;
+                    const z = r * CONFIG.tileSize + CONFIG.tileSize / 2;
+
+                    if (cell === 1) {
+                        const wall = new THREE.Mesh(wallGeo, wallMat);
+                        wall.position.set(x, CONFIG.wallHeight / 2, z);
+                        wall.castShadow = true; wall.receiveShadow = true;
+                        scene.add(wall);
+                        colliders.push(new THREE.Box3().setFromObject(wall));
+                        wallMeshes.push(wall);
+                    } else {
+                        walkableTiles.push({ r, c });
+                        if (cell === 2) {
+                            player.pos.set(x, 1.5, z);
+                        }
+                    }
+                }
+            }
+        }
+
+        function spawnLockersInWalls() {
+            const wallLockerConfigs = [
+                { x: 14.0, z: 4.3, rotYMesh: 0, rotYCam: Math.PI },
+                { x: 4.3, z: 14.0, rotYMesh: Math.PI / 2, rotYCam: -Math.PI / 2 },
+                { x: 12.3, z: 22.0, rotYMesh: Math.PI / 2, rotYCam: -Math.PI / 2 },
+                { x: 48.3, z: 30.0, rotYMesh: Math.PI / 2, rotYCam: -Math.PI / 2 },
+                { x: 15.7, z: 38.0, rotYMesh: -Math.PI / 2, rotYCam: Math.PI / 2 },
+                { x: 12.3, z: 46.0, rotYMesh: Math.PI / 2, rotYCam: -Math.PI / 2 },
+                { x: 4.3, z: 54.0, rotYMesh: Math.PI / 2, rotYCam: -Math.PI / 2 },
+                { x: 38.0, z: 59.7, rotYMesh: Math.PI, rotYCam: 0 }
+            ];
+
+            const lockerMat = new THREE.MeshStandardMaterial({ color: 0x22262d, roughness: 0.35, metalness: 0.9 });
+            const slitMat = new THREE.MeshStandardMaterial({ color: 0x020202, roughness: 0.9 });
+
+            wallLockerConfigs.forEach(cfg => {
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.6, 0.6), lockerMat);
+                body.position.y = 1.3;
+                group.add(body);
+
+                for (let s = 0; s < 4; s++) {
+                    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.04, 0.02), slitMat);
+                    slit.position.set(0, 1.8 + s * 0.12, 0.31);
+                    group.add(slit);
+                }
+
+                group.position.set(cfg.x, 0, cfg.z);
+                group.rotation.y = cfg.rotYMesh;
+                scene.add(group);
+
+                lockers.push({
+                    mesh: group,
+                    pos: new THREE.Vector3(cfg.x, 1.2, cfg.z),
+                    insidePos: new THREE.Vector3(cfg.x, 1.45, cfg.z),
+                    facingRotY: cfg.rotYCam
+                });
+            });
+        }
+
+        function createWallMountedFuseBox() {
+            const wallX = 4 * CONFIG.tileSize + CONFIG.tileSize + 0.08;
+            const wallZ = 7 * CONFIG.tileSize + CONFIG.tileSize / 2;
+            fuseBoxPos.set(wallX, 1.6, wallZ);
+
+            fuseBoxMesh = new THREE.Group();
+
+            const mainBox = new THREE.Mesh(
+                new THREE.BoxGeometry(0.16, 1.1, 0.85),
+                new THREE.MeshStandardMaterial({ color: 0x1b1e24, roughness: 0.45, metalness: 0.85 })
+            );
+            fuseBoxMesh.add(mainBox);
+
+            const frame = new THREE.Mesh(
+                new THREE.BoxGeometry(0.04, 1.14, 0.89),
+                new THREE.MeshStandardMaterial({ color: 0x2d323e, roughness: 0.3, metalness: 0.9 })
+            );
+            frame.position.x = 0.08;
+            fuseBoxMesh.add(frame);
+
+            const conduit1 = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, 0.6, 10),
+                new THREE.MeshStandardMaterial({ color: 0x444850, metalness: 0.9 })
+            );
+            conduit1.position.set(-0.04, -0.7, -0.25);
+            fuseBoxMesh.add(conduit1);
+
+            const conduit2 = conduit1.clone();
+            conduit2.position.set(-0.04, -0.7, 0.25);
+            fuseBoxMesh.add(conduit2);
+
+            for (let i = 0; i < 6; i++) {
+                const zOffset = -0.25 + (i % 3) * 0.25;
+                const yOffset = 0.22 - Math.floor(i / 3) * 0.35;
+
+                const socket = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.05, 0.05, 0.08, 12),
+                    new THREE.MeshStandardMaterial({ color: 0x08080a, roughness: 0.9 })
+                );
+                socket.rotation.z = Math.PI / 2;
+                socket.position.set(0.09, yOffset, zOffset);
+                fuseBoxMesh.add(socket);
+
+                const fuseMesh = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.04, 0.04, 0.16, 12),
+                    new THREE.MeshStandardMaterial({ color: 0x00ffcc, roughness: 0.2, metalness: 0.8 })
+                );
+                fuseMesh.rotation.z = Math.PI / 2;
+                fuseMesh.position.set(0.12, yOffset, zOffset);
+                fuseMesh.visible = false;
+                fuseBoxMesh.add(fuseMesh);
+                fuseSockets.push(fuseMesh);
+            }
+
+            const redLED = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+            redLED.position.set(0.1, 0.42, -0.34);
+            fuseBoxMesh.add(redLED);
+
+            const boxLight = new THREE.PointLight(0xff2200, 1.2, 2.5);
+            boxLight.position.set(0.2, 0.1, 0);
+            fuseBoxMesh.add(boxLight);
+
+            fuseBoxMesh.position.copy(fuseBoxPos);
+            scene.add(fuseBoxMesh);
+        }
+
+        function create3DBlastExitDoor() {
+            const exitX = 14 * CONFIG.tileSize + CONFIG.tileSize / 2;
+            const exitZ = 13 * CONFIG.tileSize + 0.05;
+
+            exitDoorGroup = new THREE.Group();
+
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.6, metalness: 0.8 });
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a1212, roughness: 0.4, metalness: 0.9 });
+
+            const topArch = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.25, 0.06), frameMat);
+            topArch.position.y = 2.25;
+            exitDoorGroup.add(topArch);
+
+            const leftCol = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.2, 0.06), frameMat);
+            leftCol.position.set(-0.94, 1.1, 0);
+            exitDoorGroup.add(leftCol);
+
+            const rightCol = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.2, 0.06), frameMat);
+            rightCol.position.set(0.94, 1.1, 0);
+            exitDoorGroup.add(rightCol);
+
+            leftDoorLeaf = new THREE.Mesh(new THREE.BoxGeometry(0.88, 2.1, 0.04), doorMat);
+            leftDoorLeaf.position.set(-0.44, 1.05, 0);
+            exitDoorGroup.add(leftDoorLeaf);
+
+            rightDoorLeaf = new THREE.Mesh(new THREE.BoxGeometry(0.88, 2.1, 0.04), doorMat);
+            rightDoorLeaf.position.set(0.44, 1.05, 0);
+            exitDoorGroup.add(rightDoorLeaf);
+
+            doorLight = new THREE.PointLight(0xff0000, 2.0, 5.0);
+            doorLight.position.set(0, 2.3, 0.2);
+            exitDoorGroup.add(doorLight);
+
+            exitDoorGroup.position.set(exitX, 0, exitZ);
+            scene.add(exitDoorGroup);
+        }
+
+        function spawnFuses() {
+            const fuseSpawns = [
+                {r: 1, c: 8}, {r: 3, c: 14}, {r: 5, c: 4},
+                {r: 7, c: 8}, {r: 11, c: 4}, {r: 13, c: 12}
+            ];
+
+            const glassMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, roughness: 0.1, metalness: 0.9 });
+            const capMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.95 });
+
+            fuseSpawns.forEach(f => {
+                const x = f.c * CONFIG.tileSize + CONFIG.tileSize / 2;
+                const z = f.r * CONFIG.tileSize + CONFIG.tileSize / 2;
+
+                const group = new THREE.Group();
+                const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.35, 12), glassMat);
+                glass.position.y = 0.2; group.add(glass);
+
+                const cap1 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 12), capMat); cap1.position.y = 0.04; group.add(cap1);
+                const cap2 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 12), capMat); cap2.position.y = 0.36; group.add(cap2);
+
+                const light = new THREE.PointLight(0x00ffcc, 1.2, 2.5);
+                light.position.y = 0.2; group.add(light);
+
+                group.position.set(x, 0, z);
+                scene.add(group);
+
+                fuses.push({ mesh: group, pos: new THREE.Vector3(x, 0.3, z), collected: false });
+            });
+        }
+
+        function spawnBatteries() {
+            const batSpawns = [{r: 2, c: 5}, {r: 6, c: 10}, {r: 10, c: 7}, {r: 12, c: 1}];
+
+            batSpawns.forEach(b => {
+                const x = b.c * CONFIG.tileSize + CONFIG.tileSize / 2;
+                const z = b.r * CONFIG.tileSize + CONFIG.tileSize / 2;
+
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.28, 12), new THREE.MeshStandardMaterial({ color: 0x00ff44, roughness: 0.3 }));
+                body.position.y = 0.14; group.add(body);
+                const light = new THREE.PointLight(0x00ff44, 0.8, 2.0); light.position.y = 0.2; group.add(light);
+                group.position.set(x, 0, z); scene.add(group);
+
+                batteries.push({ mesh: group, pos: new THREE.Vector3(x, 0.3, z), collected: false });
+            });
+        }
+
+        function createMutatedAshMonster() {
+            stalkerGroup = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ map: generateDemonSkinTexture(), color: 0x5a5e66, roughness: 0.5, metalness: 0.2 });
+            const boneMat = new THREE.MeshStandardMaterial({ color: 0x16171a, roughness: 0.85 });
+
+            stalkerLeftLeg = createHeavyLeg(-0.24, skinMat);
+            stalkerRightLeg = createHeavyLeg(0.24, skinMat);
+            stalkerGroup.add(stalkerLeftLeg); stalkerGroup.add(stalkerRightLeg);
+
+            const belly = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 12), skinMat);
+            belly.position.set(0, 1.3, 0.0); stalkerGroup.add(belly);
+            const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.36, 0.75, 10), skinMat);
+            chest.position.set(0, 1.88, 0); stalkerGroup.add(chest);
+
+            heartLight = new THREE.PointLight(0xff2200, 1.8, 3.0);
+            heartLight.position.set(0, 1.85, 0.25); stalkerGroup.add(heartLight);
+
+            stalkerHeadGroup = new THREE.Group();
+            stalkerHeadGroup.position.set(0, 2.55, 0.04);
+            const skull = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 12), skinMat);
+            stalkerHeadGroup.add(skull);
+
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+            const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 8), eyeMat); eyeL.position.set(-0.09, 0.09, 0.21);
+            const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 8), eyeMat); eyeR.position.set(0.09, 0.09, 0.21);
+            stalkerHeadGroup.add(eyeL); stalkerHeadGroup.add(eyeR);
+
+            stalkerGroup.add(stalkerHeadGroup);
+            stalkerLeftArm = createHeavyArm(-0.46, skinMat, boneMat);
+            stalkerRightArm = createHeavyArm(0.46, skinMat, boneMat);
+            stalkerGroup.add(stalkerLeftArm); stalkerGroup.add(stalkerRightArm);
+
+            stalkerGroup.position.set(8 * CONFIG.tileSize, 0, 8 * CONFIG.tileSize);
+            scene.add(stalkerGroup);
+        }
+
+        function createHeavyLeg(offsetX, skinMat) {
+            const leg = new THREE.Group(); leg.position.set(offsetX, 1.25, 0);
+            const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.65, 8), skinMat); thigh.position.set(0, -0.325, 0); leg.add(thigh);
+            const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.6, 8), skinMat); shin.position.set(0, -0.95, 0); leg.add(shin);
+            return leg;
+        }
+
+        function createHeavyArm(offsetX, skinMat, boneMat) {
+            const arm = new THREE.Group(); arm.position.set(offsetX, 2.05, 0);
+            const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.075, 0.8, 8), skinMat); upperArm.position.set(0, -0.42, 0); arm.add(upperArm);
+            const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.05, 0.9, 8), skinMat); forearm.position.set(0, -1.2, 0.06); arm.add(forearm);
+            return arm;
+        }
+
+        function getMonsterNextTile(startR, startC, targetR, targetC) {
+            let queue = [[startR, startC]];
+            let cameFrom = {}; cameFrom[`${startR},${startC}`] = null;
+            let found = false;
+
+            while(queue.length > 0) {
+                let [r, c] = queue.shift();
+                if (r === targetR && c === targetC) { found = true; break; }
+                const neighbors = [[r-1, c], [r+1, c], [r, c-1], [r, c+1]];
+                for(let [nr, nc] of neighbors) {
+                    if (nr >= 0 && nr < CONFIG.mapSize && nc >= 0 && nc < CONFIG.mapSize) {
+                        if (MAZE_GRID[nr][nc] !== 1 && !(`${nr},${nc}` in cameFrom)) {
+                            cameFrom[`${nr},${nc}`] = `${r},${c}`;
+                            queue.push([nr, nc]);
+                        }
+                    }
+                }
+            }
+            if (!found) return null;
+            let curr = `${targetR},${targetC}`; let path = [];
+            while(curr && curr !== `${startR},${startC}`) { path.push(curr); curr = cameFrom[curr]; }
+            if (path.length === 0) return null;
+            return path[path.length - 1].split(',').map(Number);
+        }
+
+        function hasLineOfSightToPlayer() {
+            if (player.isHiding) return false;
+            const origin = stalkerGroup.position.clone();
+            origin.y = 1.8;
+            const target = player.pos.clone();
+            target.y = 1.5;
+
+            const dir = target.sub(origin);
+            const dist = dir.length();
+            dir.normalize();
+
+            const raycaster = new THREE.Raycaster(origin, dir, 0.1, dist);
+            const hits = raycaster.intersectObjects(wallMeshes, false);
+            return hits.length === 0;
+        }
+
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            chaseOsc = audioCtx.createOscillator(); chaseGain = audioCtx.createGain(); chaseFilter = audioCtx.createBiquadFilter();
+            chaseOsc.type = 'sawtooth'; chaseOsc.frequency.setValueAtTime(75, audioCtx.currentTime);
+            chaseFilter.type = 'lowpass'; chaseFilter.frequency.setValueAtTime(300, audioCtx.currentTime);
+            chaseGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+            chaseOsc.connect(chaseFilter); chaseFilter.connect(chaseGain); chaseGain.connect(audioCtx.destination); chaseOsc.start();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+
+            if (type === 'fuse') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(1400, now + 0.2);
+                gain.gain.setValueAtTime(0.4, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            } else if (type === 'battery') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(300, now); osc.frequency.exponentialRampToValueAtTime(900, now + 0.15);
+                gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+            } else if (type === 'door') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(60, now + 0.25);
+                gain.gain.setValueAtTime(0.4, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+            }
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + 0.25);
+        }
+
+        function playHeartbeatSound(volume = 0.5, speedMult = 1.0) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.type = 'sine'; osc.frequency.setValueAtTime(80 * speedMult, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(22, audioCtx.currentTime + (0.12 / speedMult));
+            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (0.12 / speedMult));
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + (0.12 / speedMult));
+        }
+
+        function triggerExtremeJumpScareAudio() {
+            if (!audioCtx) return;
+            const osc1 = audioCtx.createOscillator(); const scareGain = audioCtx.createGain();
+            osc1.type = 'sawtooth'; osc1.frequency.setValueAtTime(1400, audioCtx.currentTime);
+            osc1.frequency.linearRampToValueAtTime(150, audioCtx.currentTime + 1.4);
+            scareGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+            scareGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.4);
+            osc1.connect(scareGain); scareGain.connect(audioCtx.destination);
+            osc1.start(); osc1.stop(audioCtx.currentTime + 1.4);
+        }
+
+        function pauseGame() {
+            if (!gameStarted || isJumpscaring) return;
+            isGamePaused = true;
+            if (chaseGain && audioCtx) chaseGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            document.getElementById('pause-screen').style.display = 'flex';
+        }
+
+        function resumeGame() {
+            if (!gameStarted || isJumpscaring) return;
+            isGamePaused = false;
+            document.getElementById('pause-screen').style.display = 'none';
+            document.body.requestPointerLock();
+        }
+
+        function onKey(e, pressed) {
+            keys[e.code] = pressed;
+            
+            if (pressed && e.code === 'Escape') {
+                if (gameStarted && !isJumpscaring) {
+                    if (isGamePaused) resumeGame();
+                    else pauseGame();
+                }
+                return;
+            }
+
+            if (isGamePaused) return;
+
+            if (pressed && e.code === 'KeyF') {
+                if (player.battery > 0) {
+                    player.flashlightOn = !player.flashlightOn;
+                    flashlight.visible = player.flashlightOn;
+                }
+            }
+            if (pressed && e.code === 'KeyE') checkInteraction();
+        }
+
+        function onMouseMove(e) {
+            if (!isPointerLocked || isJumpscaring || isGamePaused) return;
+            player.rot.x -= e.movementY * CONFIG.sens;
+            player.rot.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, player.rot.x));
+
+            if (player.isHiding && player.currentLocker) {
+                const baseRot = player.currentLocker.facingRotY;
+                let dy = (player.rot.y - e.movementX * CONFIG.sens) - baseRot;
+                while (dy < -Math.PI) dy += Math.PI * 2;
+                while (dy > Math.PI) dy -= Math.PI * 2;
+                dy = Math.max(-1.2, Math.min(1.2, dy));
+                player.rot.y = baseRot + dy;
+            } else {
+                player.rot.y -= e.movementX * CONFIG.sens;
+            }
+        }
+
+        function startGame() {
+            gameStarted = true;
+            document.getElementById('start-screen').style.display = 'none';
+            document.body.requestPointerLock();
+            initAudio();
+            animate();
+        }
+
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = (document.pointerLockElement === document.body);
+            if (!isPointerLocked && gameStarted && !isJumpscaring) {
+                pauseGame();
+            }
+        });
+
+        function toggleLockerHide(lockerObj) {
+            if (!player.isHiding) {
+                const hasLOS = hasLineOfSightToPlayer();
+                const distToM = stalkerGroup.position.distanceTo(player.pos);
+                sawPlayerHide = (monsterState === 'CHASE' && (hasLOS || distToM < 8.0));
+
+                player.isHiding = true;
+                player.currentLocker = lockerObj;
+                
+                flashlight.visible = player.flashlightOn && player.battery > 0;
+                
+                player.rot.y = lockerObj.facingRotY;
+                player.rot.x = 0;
+                document.getElementById('locker-overlay').style.display = 'block';
+                playSound('door');
+            } else {
+                player.isHiding = false;
+                player.currentLocker = null;
+                flashlight.visible = player.flashlightOn && player.battery > 0;
+                document.getElementById('locker-overlay').style.display = 'none';
+                playSound('door');
+            }
+        }
+
+        function checkInteraction() {
+            if (activeLockerIndex !== -1 || player.isHiding) {
+                const targetLocker = player.isHiding ? player.currentLocker : lockers[activeLockerIndex];
+                toggleLockerHide(targetLocker);
+                return;
+            }
+
+            if (player.isHiding) return;
+
+            if (activeFuseIndex !== -1) {
+                const fuseObj = fuses[activeFuseIndex];
+                if (!fuseObj.collected) {
+                    if (player.hasFuse) {
+                        const prompt = document.getElementById('prompt');
+                        prompt.innerText = "CAPACITY FULL! DEPOSIT CARRIED FUSE FIRST!";
+                        prompt.style.display = 'block';
+                        return;
+                    }
+                    fuseObj.collected = true;
+                    scene.remove(fuseObj.mesh);
+                    player.hasFuse = true;
+                    updateInventoryUI();
+                    playSound('fuse');
+                }
+                return;
+            }
+
+            if (activeBatteryIndex !== -1) {
+                const batObj = batteries[activeBatteryIndex];
+                if (!batObj.collected) {
+                    batObj.collected = true;
+                    scene.remove(batObj.mesh);
+                    player.battery = Math.min(100, player.battery + 35);
+                    playSound('battery');
+                }
+                return;
+            }
+
+            if (isNearFuseBox && player.hasFuse && player.fusesInstalled < 6) {
+                player.hasFuse = false;
+                fuseSockets[player.fusesInstalled].visible = true;
+                player.fusesInstalled++;
+                document.getElementById('fuse-count').innerText = `${player.fusesInstalled}/6`;
+                updateInventoryUI();
+                playSound('fuse');
+
+                if (player.fusesInstalled === 6) {
+                    powerRestored = true;
+                    doorLight.color.setHex(0x00ff44);
+                    document.getElementById('task-state').innerText = "POWER RESTORED! BLAST DOORS OPENING!";
+                    document.getElementById('task-state').style.color = "#00ff44";
+                }
+                return;
+            }
+        }
+
+        function updateInventoryUI() {
+            const status = document.getElementById('inventory-status');
+            if (player.hasFuse) {
+                status.innerText = "POWER FUSE (1/1)";
+                status.style.color = "#00ffcc";
+            } else {
+                status.innerText = "NONE (0/1)";
+                status.style.color = "#ff3333";
+            }
+        }
+
+        function triggerDeathJumpscare() {
+            if (isJumpscaring) return;
+            isJumpscaring = true;
+            triggerExtremeJumpScareAudio();
+            const flash = document.getElementById('screen-flash');
+            flash.style.background = '#aa0000'; flash.style.opacity = '0.9';
+
+            setTimeout(() => {
+                flash.style.opacity = '0';
+                triggerGameOver(false);
+            }, 1200);
+        }
+
+        function triggerGameOver(success) {
+            document.exitPointerLock();
+            if (chaseGain && audioCtx) chaseGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            const screen = document.getElementById('game-over-screen');
+            const title = document.getElementById('game-over-title');
+            const desc = document.getElementById('game-over-desc');
+
+            if (success) {
+                title.innerText = "LEVEL 3 COMPLETED"; title.style.color = "#4caf50";
+                desc.innerText = "Power restored. You survived Sub-Level 3!";
+            } else {
+                title.innerText = "SIGNAL TERMINATED"; title.style.color = "#ff0000";
+                desc.innerText = "Subject killed in Sub-Level 3.";
+            }
+            screen.style.display = 'flex';
+        }
+
+        function drawMinimap() {
+            if (!minimapCtx) return;
+            minimapCtx.clearRect(0, 0, 140, 140);
+            const tileSize = 140 / CONFIG.mapSize;
+
+            for (let r = 0; r < CONFIG.mapSize; r++) {
+                for (let c = 0; c < CONFIG.mapSize; c++) {
+                    if (MAZE_GRID[r][c] === 1) {
+                        minimapCtx.fillStyle = '#22222a';
+                        minimapCtx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+                    }
+                }
+            }
+            minimapCtx.fillStyle = powerRestored ? '#00ff44' : '#ff0000';
+            minimapCtx.fillRect(14 * tileSize, 13 * tileSize, tileSize, tileSize);
+
+            const px = (player.pos.x / (CONFIG.mapSize * CONFIG.tileSize)) * 140;
+            const pz = (player.pos.z / (CONFIG.mapSize * CONFIG.tileSize)) * 140;
+
+            minimapCtx.fillStyle = '#00ffcc';
+            minimapCtx.beginPath(); minimapCtx.arc(px, pz, 3, 0, Math.PI * 2); minimapCtx.fill();
+        }
+
+        function updateProximityMeter() {
+            const bar = document.getElementById('proximity-bar');
+            const dist = player.pos.distanceTo(stalkerGroup.position);
+            let ratio = Math.max(0, 1 - Math.min(dist / 14, 1));
+            bar.style.width = `${(ratio * 100).toFixed(0)}%`;
+            bar.style.backgroundColor = ratio > 0.7 ? '#ff2222' : (ratio > 0.4 ? '#ffaa00' : '#00ffcc');
+        }
+
+        function updatePlayer(delta) {
+            if (!isPointerLocked || isJumpscaring || isGamePaused) return;
+
+            const time = clock.getElapsedTime();
+
+            if (player.flashlightOn) {
+                player.battery = Math.max(0, player.battery - delta * 0.4);
+                if (player.battery <= 0) {
+                    player.flashlightOn = false; flashlight.visible = false;
+                }
+            }
+            const batBar = document.getElementById('battery-bar');
+            batBar.style.width = `${player.battery.toFixed(0)}%`;
+            batBar.style.backgroundColor = player.battery < 25 ? '#ff2222' : '#00ff66';
+
+            player.isSprinting = keys['ShiftLeft'] && player.stamina > 0 && !player.isHiding;
+            const speed = player.isSprinting ? CONFIG.sprintSpeed : CONFIG.moveSpeed;
+            if (player.isSprinting) player.stamina = Math.max(0, player.stamina - delta * 45);
+            else player.stamina = Math.min(100, player.stamina + delta * 12);
+            document.getElementById('stamina-bar').style.width = `${player.stamina}%`;
+
+            if (!player.isHiding) {
+                const moveVector = new THREE.Vector3();
+                if (keys['KeyW']) moveVector.z -= 1;
+                if (keys['KeyS']) moveVector.z += 1;
+                if (keys['KeyA']) moveVector.x -= 1;
+                if (keys['KeyD']) moveVector.x += 1;
+
+                moveVector.normalize();
+                moveVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rot.y);
+                moveVector.multiplyScalar(speed * delta);
+
+                const nextPos = player.pos.clone().add(moveVector);
+                const playerBox = new THREE.Box3().setFromCenterAndSize(
+                    new THREE.Vector3(nextPos.x, 1.0, nextPos.z),
+                    new THREE.Vector3(0.6, 1.8, 0.6)
+                );
+
+                let collided = false;
+                for (let collider of colliders) {
+                    if (playerBox.intersectsBox(collider)) { collided = true; break; }
+                }
+                if (!collided) player.pos.copy(nextPos);
+
+                camera.position.set(player.pos.x, player.pos.y, player.pos.z);
+            } else {
+                camera.position.copy(player.currentLocker.insidePos);
+            }
+
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = player.rot.y;
+            camera.rotation.x = player.rot.x;
+
+            if (powerRestored && leftDoorLeaf.position.x > -1.3) {
+                leftDoorLeaf.position.x -= delta * 1.0;
+                rightDoorLeaf.position.x += delta * 1.0;
+            }
+
+            const exitTilePos = new THREE.Vector3(14 * CONFIG.tileSize + 2, 1, 13 * CONFIG.tileSize + 2);
+            if (player.pos.distanceTo(exitTilePos) < 2.2 && powerRestored) {
+                triggerGameOver(true);
+            }
+
+            const dist2D = Math.hypot(stalkerGroup.position.x - player.pos.x, stalkerGroup.position.z - player.pos.z);
+            if (!player.isHiding && dist2D < 1.8) {
+                triggerDeathJumpscare();
+                return;
+            }
+
+            if (stalkerActive && !isJumpscaring) {
+                const hasLOS = hasLineOfSightToPlayer();
+                const detectDist = player.flashlightOn ? 28.0 : 18.0;
+
+                if (monsterState === 'PATROL') {
+                    if (hasLOS && dist2D < detectDist) {
+                        monsterState = 'CHASE';
+                    }
+                } else if (monsterState === 'CHASE') {
+                    if (!player.isHiding) {
+                        lastKnownPos.copy(player.pos);
+                        if (dist2D > 32.0 || (!hasLOS && dist2D > 20.0)) {
+                            monsterState = 'INVESTIGATE';
+                            investigateTimer = 0;
+                        }
+                    } else {
+                        if (!sawPlayerHide) {
+                            monsterState = 'INVESTIGATE';
+                            investigateTimer = 0;
+                        }
+                    }
+                } else if (monsterState === 'INVESTIGATE') {
+                    if (hasLOS && dist2D < detectDist && !player.isHiding) {
+                        monsterState = 'CHASE';
+                    }
+                }
+
+                if (monsterState === 'CHASE') {
+                    if (chaseGain && audioCtx) {
+                        chaseGain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+                        chaseFilter.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    }
+                    if (time - lastHeartbeat > 0.35) {
+                        playHeartbeatSound(0.7, 1.8);
+                        lastHeartbeat = time;
+                    }
+                } else {
+                    if (chaseGain && audioCtx) chaseGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+                }
+
+                let targetVec = new THREE.Vector3();
+
+                if (monsterState === 'PATROL') {
+                    if (!patrolTile || stalkerGroup.position.distanceTo(patrolTargetVec) < 1.2) {
+                        const randIdx = Math.floor(Math.random() * walkableTiles.length);
+                        patrolTile = walkableTiles[randIdx];
+                        patrolTargetVec.set(patrolTile.c * CONFIG.tileSize + 2, 0, patrolTile.r * CONFIG.tileSize + 2);
+                    }
+                    targetVec.copy(patrolTargetVec);
+                } else if (monsterState === 'CHASE') {
+                    if (player.isHiding) {
+                        if (sawPlayerHide && player.currentLocker) {
+                            targetVec.copy(player.currentLocker.pos);
+                            const lockerDist = Math.hypot(stalkerGroup.position.x - player.currentLocker.pos.x, stalkerGroup.position.z - player.currentLocker.pos.z);
+                            if (lockerDist < 1.8) {
+                                triggerDeathJumpscare();
+                                return;
+                            }
+                        }
+                    } else {
+                        targetVec.copy(player.pos);
+                    }
+                } else if (monsterState === 'INVESTIGATE') {
+                    targetVec.copy(lastKnownPos);
+                    const distToLast = Math.hypot(stalkerGroup.position.x - lastKnownPos.x, stalkerGroup.position.z - lastKnownPos.z);
+                    if (distToLast < 1.4) {
+                        investigateTimer += delta;
+                        if (investigateTimer > 2.5) {
+                            monsterState = 'PATROL';
+                            patrolTile = null;
+                        }
+                    }
+                }
+
+                const mR = Math.floor(stalkerGroup.position.z / CONFIG.tileSize);
+                const mC = Math.floor(stalkerGroup.position.x / CONFIG.tileSize);
+                const tR = Math.floor(targetVec.z / CONFIG.tileSize);
+                const tC = Math.floor(targetVec.x / CONFIG.tileSize);
+
+                let nextMovePos = targetVec.clone();
+                if (mR !== tR || mC !== tC) {
+                    const nextTile = getMonsterNextTile(mR, mC, tR, tC);
+                    if (nextTile) nextMovePos.set(nextTile[1] * CONFIG.tileSize + 2, 0, nextTile[0] * CONFIG.tileSize + 2);
+                }
+
+                const dx = nextMovePos.x - stalkerGroup.position.x;
+                const dz = nextMovePos.z - stalkerGroup.position.z;
+                const dist = Math.hypot(dx, dz);
+
+                if (dist > 0.05) {
+                    stalkerGroup.rotation.set(0, Math.atan2(dx, dz), 0);
+                    stalkerGroup.position.x += (dx / dist) * delta * CONFIG.stalkerSpeed;
+                    stalkerGroup.position.z += (dz / dist) * delta * CONFIG.stalkerSpeed;
+
+                    stalkerWalkCycle += delta * 8.0;
+                    stalkerLeftLeg.rotation.x = Math.sin(stalkerWalkCycle) * 0.45;
+                    stalkerRightLeg.rotation.x = -Math.sin(stalkerWalkCycle) * 0.45;
+                    stalkerLeftArm.rotation.x = -Math.sin(stalkerWalkCycle) * 0.55;
+                    stalkerRightArm.rotation.x = Math.sin(stalkerWalkCycle) * 0.55;
+                    stalkerGroup.position.y = Math.abs(Math.sin(stalkerWalkCycle * 2)) * 0.08;
+                } else {
+                    stalkerLeftLeg.rotation.x = THREE.MathUtils.lerp(stalkerLeftLeg.rotation.x, 0, delta * 8);
+                    stalkerRightLeg.rotation.x = THREE.MathUtils.lerp(stalkerRightLeg.rotation.x, 0, delta * 8);
+                    stalkerLeftArm.rotation.x = THREE.MathUtils.lerp(stalkerLeftArm.rotation.x, 0, delta * 8);
+                    stalkerRightArm.rotation.x = THREE.MathUtils.lerp(stalkerRightArm.rotation.x, 0, delta * 8);
+                    stalkerGroup.position.y = THREE.MathUtils.lerp(stalkerGroup.position.y, 0, delta * 8);
+                }
+            }
+
+            activeLockerIndex = -1; activeFuseIndex = -1; activeBatteryIndex = -1; isNearFuseBox = false;
+
+            lockers.forEach((l, i) => { if (player.pos.distanceTo(l.pos) < 2.2) activeLockerIndex = i; });
+            fuses.forEach((f, i) => { if (!f.collected && player.pos.distanceTo(f.pos) < 2.2) activeFuseIndex = i; });
+            batteries.forEach((b, i) => { if (!b.collected && player.pos.distanceTo(b.pos) < 2.0) activeBatteryIndex = i; });
+            if (player.pos.distanceTo(fuseBoxPos) < 2.8) isNearFuseBox = true;
+
+            const crosshair = document.getElementById('crosshair');
+            const prompt = document.getElementById('prompt');
+
+            if (player.isHiding) {
+                crosshair.classList.add('interact'); prompt.innerText = "[E] EXIT LOCKER"; prompt.style.display = 'block';
+            } else if (activeLockerIndex !== -1) {
+                crosshair.classList.add('interact'); prompt.innerText = "[E] HIDE IN LOCKER"; prompt.style.display = 'block';
+            } else if (activeFuseIndex !== -1) {
+                crosshair.classList.add('interact'); prompt.innerText = "[E] PICK UP FUSE"; prompt.style.display = 'block';
+            } else if (activeBatteryIndex !== -1) {
+                crosshair.classList.add('interact'); prompt.innerText = "[E] RECHARGE BATTERY (+35%)"; prompt.style.display = 'block';
+            } else if (isNearFuseBox && player.hasFuse) {
+                crosshair.classList.add('interact'); prompt.innerText = "[E] INSERT FUSE INTO FUSE BOX"; prompt.style.display = 'block';
+            } else {
+                crosshair.classList.remove('interact'); prompt.style.display = 'none';
+            }
+
+            drawMinimap();
+            updateProximityMeter();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            updatePlayer(delta);
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

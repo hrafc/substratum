@@ -430,7 +430,7 @@
     </div>
 
     <div id="terminal-bar-bottom">
-        <div id="status-feed">SYSTEM STATUS: SECTOR 4 PRESSURE NOMINAL</div>
+        <div id="status-feed">SYSTEM STATUS: SECTOR PRESSURE NOMINAL</div>
         <div>STATION ID: GRID-8812</div>
     </div>
 
@@ -480,22 +480,22 @@
             <!-- LEVEL 2 CARD -->
             <div class="sector-card locked-card" id="card-lvl2">
                 <div class="sector-title">
-                    <span>SECTOR 9: PROTOCOL 9</span>
+                    <span>SECTOR 9: PROTOCOL 9 (LEVEL 2)</span>
                     <span id="lvl2-badge" class="badge locked">LOCKED</span>
                 </div>
                 <div class="sector-desc">
-                    Deep sub-level grid. Expanded 16x16 corridor maze, 5 audio logs, dark flickering flashlight, 6-digit vault lock.
+                    Deep sub-level grid. Expanded 16x16 corridor maze, audio logs, dark flickering flashlight, vault lock.
                 </div>
             </div>
 
-            <!-- LEVEL 3 PREVIEW CARD -->
-            <div class="sector-card locked-card">
+            <!-- LEVEL 3 CARD -->
+            <div class="sector-card locked-card" id="card-lvl3">
                 <div class="sector-title">
-                    <span>SECTOR 12: PROTOCOL 10</span>
-                    <span class="badge locked">COMING SOON</span>
+                    <span>SECTOR 12: PROTOCOL 9 - LEVEL 3</span>
+                    <span id="lvl3-badge" class="badge locked">LOCKED</span>
                 </div>
                 <div class="sector-desc">
-                    Lower sump drainage core. Extreme proximity AI, toxic atmosphere, and multi-vault override sequence.
+                    Deep fuse sector. Collect 6 power fuses, avoid the patrolling ash monster, restore generator power, and escape through the blast door.
                 </div>
             </div>
 
@@ -518,7 +518,7 @@
                 • Hunt down audio logs and handwritten clipboards to deduce vault security sequences.<br><br>
                 <span style="color: var(--red-bright); font-weight: bold;">[CONTROLS BRIEFING]</span><br>
                 • [W A S D] Navigation | [SHIFT] Sprint Sprinting<br>
-                • [F] Flashlight Toggle | [E] Read Note / Open Vault
+                • [F] Flashlight Toggle | [E] Read Note / Open Vault / Interact
             </div>
 
             <button class="btn" id="btn-back-intel" style="text-align: center;">RETURN TO MENU</button>
@@ -575,15 +575,18 @@
             volume: 0.8,
             graphics: 'medium',
             fov: 75,
-            level2Unlocked: false
+            level2Unlocked: false,
+            level3Unlocked: false
         };
 
         function loadConfig() {
             const savedConfig = localStorage.getItem('substratum_config');
             const isLvl2Unlocked = localStorage.getItem('substratum_level2_unlocked') === 'true';
+            const isLvl3Unlocked = localStorage.getItem('substratum_level3_unlocked') === 'true';
 
             let cfg = savedConfig ? JSON.parse(savedConfig) : { ...DEFAULT_CONFIG };
             if (isLvl2Unlocked) cfg.level2Unlocked = true;
+            if (isLvl3Unlocked) cfg.level3Unlocked = true;
             return cfg;
         }
 
@@ -593,6 +596,11 @@
                 localStorage.setItem('substratum_level2_unlocked', 'true');
             } else {
                 localStorage.removeItem('substratum_level2_unlocked');
+            }
+            if (cfg.level3Unlocked) {
+                localStorage.setItem('substratum_level3_unlocked', 'true');
+            } else {
+                localStorage.removeItem('substratum_level3_unlocked');
             }
         }
 
@@ -792,6 +800,8 @@
         function updateUIState() {
             const cardLvl2 = document.getElementById('card-lvl2');
             const badgeLvl2 = document.getElementById('lvl2-badge');
+            const cardLvl3 = document.getElementById('card-lvl3');
+            const badgeLvl3 = document.getElementById('lvl3-badge');
 
             if (config.level2Unlocked) {
                 cardLvl2.classList.remove('locked-card');
@@ -803,6 +813,18 @@
                 badgeLvl2.classList.add('locked');
                 badgeLvl2.classList.remove('active');
                 badgeLvl2.innerText = "LOCKED";
+            }
+
+            if (config.level3Unlocked) {
+                cardLvl3.classList.remove('locked-card');
+                badgeLvl3.classList.remove('locked');
+                badgeLvl3.classList.add('active');
+                badgeLvl3.innerText = "AVAILABLE";
+            } else {
+                cardLvl3.classList.add('locked-card');
+                badgeLvl3.classList.add('locked');
+                badgeLvl3.classList.remove('active');
+                badgeLvl3.innerText = "LOCKED";
             }
 
             document.getElementById('vol-slider').value = config.volume * 100;
@@ -866,7 +888,9 @@
         });
 
         document.getElementById('btn-play').addEventListener('click', () => {
-            const target = config.level2Unlocked ? 'level2.html' : 'level1.html';
+            let target = 'level1.html';
+            if (config.level3Unlocked) target = 'level3.html';
+            else if (config.level2Unlocked) target = 'level2.html';
             launchLevel(target);
         });
 
@@ -878,9 +902,13 @@
         document.getElementById('card-lvl2').addEventListener('click', () => {
             if (config.level2Unlocked) launchLevel('level2.html');
         });
+        document.getElementById('card-lvl3').addEventListener('click', () => {
+            if (config.level3Unlocked) launchLevel('level3.html');
+        });
 
         document.getElementById('btn-unlock-all').addEventListener('click', () => {
             config.level2Unlocked = true;
+            config.level3Unlocked = true;
             saveConfig(config);
             updateUIState();
             playClickSound();
@@ -905,6 +933,7 @@
 
         document.getElementById('btn-reset-prog').addEventListener('click', () => {
             config.level2Unlocked = false;
+            config.level3Unlocked = false;
             saveConfig(config);
             updateUIState();
             playClickSound();
